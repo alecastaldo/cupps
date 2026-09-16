@@ -1,0 +1,44 @@
+# CUPPS-in-a-box for departure control system onboarding.
+#
+#   docker compose up cupps        # agent UI on http://127.0.0.1:8631/
+#   docker compose run --rm certify   # self-assessment record into ./records
+#   docker compose run --rm tests     # the full suite
+#
+services:
+  cupps:
+    build: .
+    image: cupps-in-a-box
+    # Loopback only on the host: this is a development environment, not a
+    # service to expose on a network.
+    ports:
+      - "127.0.0.1:8631:8631"
+    volumes:
+      # Printed documents land here, so a DCS team can look at what their
+      # integration actually produced.
+      - ./prints:/opt/cupps/prints
+    command: >
+      python3 -m cuppsd --simulator --airline ZZ
+      --airline-name "CUPPS IN A BOX"
+      --host 0.0.0.0 --port 8631
+      --print-dir /opt/cupps/prints
+    restart: unless-stopped
+
+  # Run the self-service conformance assessment against the agent application.
+  # Point --launch at your own application to assess that instead.
+  certify:
+    build: .
+    image: cupps-in-a-box
+    volumes:
+      - ./records:/opt/cupps/records
+    command: >
+      python3 -m conformance
+      --launch "python3 -m cuppsd --airline ZZ --port 8799"
+      --name CUPPSAGENT --version 01.00.0001
+      --out /opt/cupps/records/conformance-record
+    profiles: ["tools"]
+
+  tests:
+    build: .
+    image: cupps-in-a-box
+    command: ["python3", "-m", "pytest", "-q"]
+    profiles: ["tools"]

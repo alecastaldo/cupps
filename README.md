@@ -11,6 +11,8 @@ Three things live here:
 | `cupps/` | The protocol library: framing, streaming protocol, platform and device sessions, device model, MS decryption, Resolution 792 decoding. Use this to build your own application. |
 | `cuppsd/` + `webui/` | A working agent application: a device handler that owns every CUPPS session, plus a touch UI for check-in, boarding, baggage and device management. |
 | `simulator/` | A CUPPS platform simulator, so all of the above can be exercised without airport hardware. |
+| `conformance/` | A self-service conformance harness that produces a Compliance Testing Record to submit for formal certification. |
+| `tools/` | The interface-change gate and the release-notes generator — see [docs/SCALING.md](docs/SCALING.md). |
 
 Plus `cuppsit.py`, the informational tool that section 11.2 requires every
 CUPPS application package to ship.
@@ -133,12 +135,46 @@ the three that matter most:
 ## Testing
 
 ```bash
-python3 -m pytest          # 103 tests, ~35s, no hardware required
+python3 -m pytest          # 115 tests, ~65s, no hardware required
 ```
 
 The suite asserts against the specification's own published examples wherever
 it publishes them — the framing listings, and the four magnetic-stripe vectors
 in Listing 30.30 that pin down the cipher construction.
+
+## Checking your own application against the specification
+
+Point the conformance harness at any CUPPS application, in any language, and
+get a Compliance Testing Record:
+
+```bash
+python3 -m conformance --launch "python3 -m cuppsd" --name MYAPP --version 01.00
+python3 -m conformance --observe      # for an application you start yourself
+python3 -m conformance --list-checks  # what is assessed, and under which clause
+```
+
+It stands up an instrumented platform, records every message, drives the
+scenarios the specification calls out — including the platform-session loss
+that §17.1.2 singles out — and writes the record as text, JSON and a
+self-contained HTML document.
+
+This is **not** certification: §17.1.2 reserves Application Compliance Testing
+to a compliant platform supplier or the IATA approved CTE, and every report
+says so. It exists so the formal test is a review of evidence rather than a
+discovery exercise.
+
+## Running at scale
+
+Deploying across many airports is mostly a certification and change-management
+problem, not a distribution one — §17.2.1 puts distribution in the platform
+operator's hands. [docs/SCALING.md](docs/SCALING.md) covers the levers the
+specification provides, and the tooling here that uses them:
+
+```bash
+python3 tools/interface_gate.py --check    # does this release need re-certification?
+python3 tools/release_notes.py --since v1.0.0 --airline "..."   # §17.3.1 notes
+docker compose up cupps                    # CUPPS-in-a-box for DCS onboarding
+```
 
 ## Requirements
 

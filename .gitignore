@@ -9,3 +9,8 @@ build/
 .coverage
 htmlcov/
 *.log
+
+# Conformance and release artefacts
+records/
+prints/
+conformance-record.*

@@ -1,0 +1,61 @@
+# CI for a CUPPS application package.
+#
+# The interface gate is the job that matters operationally: it decides whether
+# a release needs Application Compliance Testing repeated (TS 01.04.0004
+# section 17.1.2). Everything else is ordinary verification.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  interface-gate:
+    name: CUPPS interface unchanged
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check the CUPPS interface surface
+        run: python3 tools/interface_gate.py --check
+      # A failure here is not necessarily a mistake. It means the release
+      # changes the software interface to the platform, so section 17.1.2
+      # requires compliance testing to be repeated and every platform
+      # integration revalidated. Declare it with:
+      #   python3 tools/interface_gate.py --update --note "<what changed>"
+
+  tests:
+    name: Test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[test]"
+      - run: python3 -m pytest
+
+  conformance:
+    name: Self-assessment record
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[test]"
+      - name: Run the conformance harness
+        run: |
+          python3 -m conformance \
+            --launch "python3 -m cuppsd --airline ZZ --port 8799" \
+            --name CUPPSAGENT --version "${GITHUB_SHA::8}" \
+            --out records/conformance-record
+      - name: Keep the record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-record
+          path: records/
