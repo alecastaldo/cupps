@@ -26,10 +26,14 @@ button{font:inherit;color:inherit}
 
 /* ---- header ---- */
 header{display:flex;align-items:center;gap:14px;padding:10px 16px;
-  background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap}
+  background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+.brand,.conn,.icon-btn{flex:0 0 auto}
 .brand{font-weight:700;font-size:18px;letter-spacing:.3px}
 .brand small{display:block;font-weight:400;font-size:11px;color:var(--muted);letter-spacing:.06em}
-.hdr-meta{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.hdr-meta{display:flex;gap:18px;font-size:12px;color:var(--muted);
+  flex:1 1 auto;min-width:0;overflow:hidden}
+.hdr-meta>div{min-width:0}
+.hdr-meta b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hdr-meta b{display:block;color:var(--ink);font-size:13px;font-weight:600}
 .spacer{flex:1 1 auto}
 .conn{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
@@ -137,7 +141,11 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
 .muted{color:var(--muted)}
 dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px;margin:0}
 dt{color:var(--muted)} dd{margin:0}
-@media (max-width:900px){ main{margin:0 8px 8px} header{padding:8px 10px} }
+/* At the 1024x768 minimum of section 4.3.2 the header must not wrap:
+   vertical space is scarcer than horizontal. */
+@media (max-width:1100px){ header{gap:10px} .hdr-meta{gap:12px} }
+@media (max-width:900px){ main{margin:0 8px 8px} header{padding:8px 10px}
+  .hdr-meta>div:nth-child(3){display:none} }
 </style>
 </head>
 <body>

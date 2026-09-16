@@ -265,3 +265,42 @@ def test_stop_is_deferred_while_a_device_is_locked(service, simulator):
         simulator.request_application_stop()
         time.sleep(0.3)
     assert wait_until(lambda: simulator.stop_responses[-1] == "OK", timeout=15)
+
+
+def test_each_device_resolves_its_own_interface_mode(simulator):
+    """One device falling back must not change the mode used for the next.
+
+    A BC advertising only AEA is placed ahead of a BC advertising *both*
+    modes. The preferred mode for a BC is Standard (Table 30.1). If the
+    resolved mode leaked across the acquisition loop, the second reader would
+    be opened in AEA -- which it does support, so nothing would fail; it would
+    simply be in the wrong mode. That silence is why this is asserted.
+    """
+    from cupps import InterfaceMode
+    from simulator import SimulatedDevice
+
+    aea_only = SimulatedDevice(
+        name="TSTCUPPSCKI001BC8", device_type="BC", index="20",
+        modes=(InterfaceMode.AEA,),
+    )
+    both_modes = SimulatedDevice(
+        name="TSTCUPPSCKI001BC9", device_type="BC", index="21",
+        modes=(InterfaceMode.AEA, InterfaceMode.STANDARD),
+    )
+    # Order matters: the AEA-only device is acquired first.
+    simulator.devices.insert(0, both_modes)
+    simulator.devices.insert(0, aea_only)
+
+    environment = CuppsEnvironment.from_os(simulator.environment_overrides)
+    config = ServiceConfig.from_environment(environment, application_name="MODETEST")
+    handler = CuppsService(config)
+    handler.start()
+    try:
+        assert wait_until(lambda: handler.state is AppState.STD, timeout=25)
+        modes = {h.name: h.mode for h in handler.devices.values()}
+        assert modes["TSTCUPPSCKI001BC8"] is InterfaceMode.AEA, \
+            "a device offering only AEA must be opened in AEA"
+        assert modes["TSTCUPPSCKI001BC9"] is InterfaceMode.STANDARD, \
+            "a device offering both modes must get the preferred Standard Mode"
+    finally:
+        handler.stop(timeout=5.0)

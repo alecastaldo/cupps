@@ -134,11 +134,11 @@ class Reader:
         response = self.read()
         reads: list[BarcodeRead] = []
         for element in response.body.iter("bcData"):
-            payload = element.text or ""
+            # Section 26.10 permits whitespace inside Base64 data.
+            payload = "".join((element.text or "").split())
             reads.append(
                 BarcodeRead(
-                    # Section 26.10 permits whitespace inside Base64 data.
-                    data=base64.b64decode("".join(payload.split()) or "="),
+                    data=base64.b64decode(payload) if payload else b"",
                     type_code=element.get("bcTypeCode", "u") or "u",
                     read_status=element.get("readStatus", results.OK) or results.OK,
                 )

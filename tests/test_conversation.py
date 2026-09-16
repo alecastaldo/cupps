@@ -286,3 +286,21 @@ def test_device_query_proximity_criterion_is_sent(platform):
     """Table 29.1 defines DeviceType, Proximity and DeviceName."""
     devices = platform.query_devices(device_type="PR", proximity="local")
     assert all(d.device_type == "PR" for d in devices)
+
+
+def test_empty_barcode_payload_does_not_raise(platform, simulator):
+    """An empty <bcData> must read as no data, not a Base64 error."""
+    from cupps import xmlmsg
+
+    barcode = platform.environment.first_of_type("BC")
+    device = simulator.device(barcode.name)
+    element = xmlmsg.Element("readerData")
+    element.add(xmlmsg.Element("bcData", {"bcTypeCode": "u", "readStatus": "OK"},
+                               text=""))
+    with device._lock:
+        device.pending_reads.append(element)
+
+    with DeviceSession(barcode, device_token=platform.device_token,
+                       airline_id="ZZ", mode=InterfaceMode.STANDARD) as session:
+        reads = Reader(session, device_token=platform.device_token).read_barcodes()
+        assert [r.data for r in reads] == [b""]

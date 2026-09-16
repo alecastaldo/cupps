@@ -340,19 +340,21 @@ class CuppsService:
         token = self.platform.device_token
 
         for device_type in self.config.device_types:
-            mode = DEFAULT_DEVICE_MODES.get(device_type.upper())
-            if mode is None:
+            preferred = DEFAULT_DEVICE_MODES.get(device_type.upper())
+            if preferred is None:
                 continue
             for device in self.runtime.of_type(device_type):
                 if device.name in self.devices:
                     continue
                 # Only open a mode the device actually advertises: asking for
                 # one it does not support draws modeNotSupportedForThisDevice.
+                # Resolved per device, because two devices of one type may
+                # advertise different modes.
+                mode = preferred
                 if device.modes and mode not in device.modes:
-                    alternative = next(iter(device.modes), None)
-                    if alternative is None:
+                    mode = next(iter(device.modes), None)
+                    if mode is None:
                         continue
-                    mode = alternative
                 try:
                     self._acquire_one(device, mode, token)
                 except CuppsError as exc:
@@ -688,16 +690,20 @@ class CuppsService:
                 f"{name} is in {handle.mode.value} mode; AEA commands need an "
                 f"AEA Mode session"
             )
-        took_lock = False
+        # A BG in AEA Mode is not shareable (Figure 30.1 (c)), so it is held
+        # for the exchange; other AEA devices are shareable (Figure 30.1 (d))
+        # and taking a lock would only block other applications needlessly.
+        needs_lock = handle.device_type == "BG" and not handle.session.locked
+        if needs_lock:
+            handle.session.lock()
         try:
-            if handle.device_type != "BG" and not handle.session.locked:
-                # AEA devices other than a BG are shareable (Figure 30.1 (d)),
-                # so a lock is only taken where it is needed.
-                pass
             handle.session.aea(*aea_helpers.segment(stream))
         finally:
-            if took_lock and handle.session.locked:
-                handle.session.unlock()
+            if needs_lock and handle.session.locked:
+                try:
+                    handle.session.unlock()
+                except CuppsError:
+                    log.debug("could not unlock %s after an AEA exchange", name)
         self.emit("aeaSent", device=name, bytes=len(stream))
 
     def log_activity(
