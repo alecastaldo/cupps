@@ -17,6 +17,7 @@ airport.
 
 from __future__ import annotations
 
+import itertools
 import logging
 import queue
 import secrets
@@ -212,6 +213,8 @@ def default_devices(workstation: str = "SIMCUPPSCKI001") -> list[SimulatedDevice
 class _Peer:
     """Server side of one accepted socket: framing plus message dispatch."""
 
+    _counter = itertools.count(1)
+
     def __init__(self, sock: socket.socket, simulator: "PlatformSimulator") -> None:
         self.sock = sock
         self.simulator = simulator
@@ -219,10 +222,17 @@ class _Peer:
         self.interface_level = ""
         self.send_lock = threading.Lock()
         self.closed = False
+        #: Stable identifier for this socket, used by the conformance recorder
+        #: to attribute a conversation to one connection.
+        self.connection_id = next(self._counter)
+        self.is_device_connection = False
 
     def send(self, message: xmlmsg.Message) -> None:
         if self.closed:
             return
+        recorder = self.simulator.recorder
+        if recorder is not None:
+            recorder.record_outbound(self, message)
         try:
             with self.send_lock:
                 self.sock.sendall(hdr.frame(message.encode()))
@@ -304,6 +314,8 @@ class _Handler(socketserver.BaseRequestHandler):
                 simulator._dispatch(peer, state, message, self.is_device_listener)
         except (OSError, ValueError) as exc:
             log.debug("simulator peer ended: %s", exc)
+            if simulator.recorder is not None:
+                simulator.recorder.record_fault(peer, type(exc).__name__, str(exc))
         finally:
             simulator._unregister_peer(peer, state)
             peer.closed = True
@@ -372,6 +384,8 @@ class PlatformSimulator:
         if self.print_sink:
             self.print_sink.mkdir(parents=True, exist_ok=True)
 
+        #: Optional conformance recorder; see the ``conformance`` package.
+        self.recorder = None
         self._tokens: set[str] = set()
         self._peers: dict[_Peer, dict] = {}
         self._peers_lock = threading.Lock()
@@ -565,6 +579,8 @@ class PlatformSimulator:
     def _register_peer(self, peer: _Peer, state: dict) -> None:
         with self._peers_lock:
             self._peers[peer] = state
+        if self.recorder is not None:
+            self.recorder.record_open(peer)
 
     def _unregister_peer(self, peer: _Peer, state: dict) -> None:
         device = state.get("device")
@@ -575,6 +591,8 @@ class PlatformSimulator:
                     device.lock_method = None
         with self._peers_lock:
             self._peers.pop(peer, None)
+        if self.recorder is not None:
+            self.recorder.record_close(peer)
 
     # -- dispatch ---------------------------------------------------------
 
@@ -586,6 +604,9 @@ class PlatformSimulator:
         is_device: bool,
     ) -> None:
         name = message.message_name
+        peer.is_device_connection = is_device
+        if self.recorder is not None:
+            self.recorder.record_inbound(peer, message)
         handler = getattr(self, f"_on_{name}", None)
 
         if not peer.interface_level and name not in (

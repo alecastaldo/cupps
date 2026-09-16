@@ -420,14 +420,22 @@ class Connection:
 def _tune_keepalive(sock: socket.socket) -> None:
     """Shorten keep-alive probing where the platform exposes the knobs.
 
-    The defaults on most systems are two hours, which is far longer than the
-    600s ``PltSockMaxIdleTime`` the platform applies, so a half-open socket
-    would otherwise go unnoticed well past the point the platform gave up.
+    Section 27.1.3 mandates keep-alive but sets no intervals, and the system
+    defaults are two hours.  That matters more than it first appears: a peer
+    that vanishes without sending a FIN -- a switch failover, a platform
+    losing power, a firewall dropping the flow, all routine in an airport --
+    leaves a *half-open* connection that a blocked reader never notices. The
+    application would sit in aStd with the agent screen showing "Connected"
+    while nothing worked.
+
+    These values detect that within roughly 20 + 3x5 = 35 seconds, at a cost
+    of a few probe packets per minute per socket. The alternative, polling the
+    platform to prove it is alive, is what section 30.2 calls a bug.
     """
     for option, value in (
-        ("TCP_KEEPIDLE", 60),
-        ("TCP_KEEPINTVL", 15),
-        ("TCP_KEEPCNT", 4),
+        ("TCP_KEEPIDLE", 20),
+        ("TCP_KEEPINTVL", 5),
+        ("TCP_KEEPCNT", 3),
     ):
         constant = getattr(socket, option, None)
         if constant is None:
