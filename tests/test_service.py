@@ -234,3 +234,34 @@ def test_platform_loss_is_detected_and_recovered(service, simulator):
         "the handler did not reconnect"
     assert service.runtime.device_token != original_token
     assert service.devices, "devices were not re-acquired"
+
+
+def test_platform_directed_stop_is_answered_and_honoured(service, simulator):
+    """Section 29.2: the platform may direct an application to terminate."""
+    assert simulator.request_application_stop() >= 1
+    assert wait_until(lambda: simulator.stop_responses, timeout=15), \
+        "the application never answered the stop command"
+    assert simulator.stop_responses[-1] == "OK"
+    # Having agreed to stop, it must actually leave steady state.
+    assert wait_until(lambda: service.state is not AppState.STD, timeout=20)
+
+
+def test_stop_is_deferred_while_a_device_is_locked(service, simulator):
+    """An application may defer up to MaxSpgDeferTimes to finish a transaction."""
+    from cupps import params
+
+    printer = service.first_of_type("PR")
+    printer.session.lock()
+    try:
+        simulator.stop_responses.clear()
+        assert simulator.request_application_stop() >= 1
+        assert wait_until(lambda: simulator.stop_responses, timeout=15)
+        assert simulator.stop_responses[-1] == "defer"
+    finally:
+        printer.session.unlock()
+
+    # Past the deferral allowance the application must give in.
+    for _ in range(params.MAX_SPG_DEFER_TIMES + 1):
+        simulator.request_application_stop()
+        time.sleep(0.3)
+    assert wait_until(lambda: simulator.stop_responses[-1] == "OK", timeout=15)

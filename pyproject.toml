@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cupps"
+version = "1.0.1"
+description = "CUPPS 01.04 interface library, device handler and agent application"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Proprietary"}
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: Communications",
+]
+dependencies = [
+  # Magnetic stripe track decryption (TS section 30.3). Either backend works;
+  # pycryptodome is the smaller install for a locked-down workstation image.
+  "pycryptodome>=3.15",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "pypdf>=3"]
+# Full XSD validation of interface messages against the platform's published
+# schemas. See docs/DEPLOYMENT.md section 6.
+validation = ["lxml>=4.9"]
+
+[project.scripts]
+cuppsd = "cuppsd.__main__:main"
+cuppsit = "cuppsit:main"
+
+[tool.setuptools]
+packages = ["cupps", "cuppsd", "simulator"]
+py-modules = ["cuppsit"]
+
+[tool.setuptools.package-data]
+"*" = ["../webui/*"]

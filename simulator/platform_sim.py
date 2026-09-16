@@ -382,6 +382,10 @@ class PlatformSimulator:
         self.printed: list[dict] = []
         #: AEA command strings received, for assertions in tests.
         self.aea_commands: list[str] = []
+        #: Results of <applicationStopCommandResponse>, for assertions in tests.
+        self.stop_responses: list[str] = []
+        #: Documents cancelled via <printCancelRequest>, for assertions.
+        self.cancelled_documents: list[str] = []
 
         self._platform_server = _Server(
             (host, platform_port), _PlatformHandler, self
@@ -704,6 +708,33 @@ class PlatformSimulator:
             device_list.add(device.to_element(self.host, self.device_port))
         peer.reply("deviceQueryResponse", message, result=None, body=body)
 
+    def request_application_stop(self) -> int:
+        """Send ``<applicationStopCommandRequest>`` to every platform session.
+
+        Section 29.2: the platform may request an application to terminate
+        gracefully.  Returns how many sessions were told.
+        """
+        with self._peers_lock:
+            peers = [
+                peer
+                for peer, peer_state in self._peers.items()
+                if peer_state.get("token") and peer_state.get("device") is None
+            ]
+        for peer in peers:
+            peer.send(
+                xmlmsg.build(
+                    "applicationStopCommandRequest",
+                    peer.ids.allocate(),
+                    body=xmlmsg.Element("applicationStopCommandRequest"),
+                    interface_level=peer.interface_level or "01.04",
+                )
+            )
+        return len(peers)
+
+    def _on_applicationStopCommandResponse(self, peer, state, message) -> None:
+        """Record the application's answer: OK, or defer (section 29.2)."""
+        self.stop_responses.append(message.body.get("result", ""))
+
     def _on_byeRequest(self, peer, state, message) -> None:
         peer.reply("byeResponse", message)
         token = state.get("token")
@@ -839,6 +870,16 @@ class PlatformSimulator:
         peer.reply("deviceUnlockResponse", message)
 
     def _on_setCryptAlgorithmRequest(self, peer, state, message) -> None:
+        requested = message.body.get("mode", "")
+        if requested not in (
+            results.CryptAlgorithm.AES_STRONG.value,
+            results.CryptAlgorithm.DES_WEAK.value,
+        ):
+            peer.reply(
+                "setCryptAlgorithmResponse", message, result="invalidAlgorithm"
+            )
+            return
+        state["crypt"] = requested
         peer.reply("setCryptAlgorithmResponse", message)
 
     # -- device operations ------------------------------------------------
@@ -937,6 +978,7 @@ class PlatformSimulator:
         log.info("simulated print: %s", record)
 
     def _on_printCancelRequest(self, peer, state, message) -> None:
+        self.cancelled_documents.append(message.body.get("documentID", "") or "")
         peer.reply("printCancelResponse", message)
 
     def _on_aeaRequest(self, peer, state, message) -> None:

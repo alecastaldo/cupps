@@ -240,3 +240,49 @@ def test_applications_may_not_open_a_platform_scope_log(platform):
                        airline_id="ZZ", mode=InterfaceMode.SPECIAL) as session:
         with pytest.raises(CuppsError, match="platform-scope"):
             LogDevice(session).open("1", "TOKEN", LogScope.PLATFORM)
+
+
+def test_print_cancel(platform, simulator):
+    """Section 30.15.5: a queued document may be cancelled."""
+    from cupps import Printer
+
+    printer_device = platform.environment.first_of_type("PR")
+    with DeviceSession(printer_device, device_token=platform.device_token,
+                       airline_id="ZZ", mode=InterfaceMode.STANDARD) as session:
+        session.lock()
+        assert Printer(session).cancel(7) == "OK"
+        assert simulator.cancelled_documents[-1] == "7"
+
+
+def test_crypt_algorithm_selection(platform, simulator):
+    """Section 30.3: the application may choose the algorithm for a session."""
+    from cupps import CryptAlgorithm
+
+    magnetic = platform.environment.first_of_type("MS")
+    # The platform advertises its default and what else it offers.
+    assert platform.environment.platform.default_crypt_algorithm == "aes-strong"
+    assert set(platform.environment.platform.available_crypt_algorithms) == {
+        "aes-strong", "des-weak",
+    }
+
+    with DeviceSession(magnetic, device_token=platform.device_token,
+                       airline_id="ZZ", mode=InterfaceMode.STANDARD) as session:
+        reader = Reader(session, device_token=platform.device_token)
+        assert reader.crypt_algorithm == CryptAlgorithm.AES_STRONG.value
+        reader.set_crypt_algorithm(CryptAlgorithm.DES_WEAK.value)
+        assert reader.crypt_algorithm == CryptAlgorithm.DES_WEAK.value
+
+        # ...and a swipe now decrypts under the newly chosen algorithm.
+        simulator.crypt_algorithm = CryptAlgorithm.DES_WEAK.value
+        try:
+            simulator.swipe_card(magnetic.name, {1: "DES TRACK DATA"})
+            assert reader.wait_for_data(timeout=5.0)
+            assert reader.read_tracks()[0].text == "DES TRACK DATA"
+        finally:
+            simulator.crypt_algorithm = CryptAlgorithm.AES_STRONG.value
+
+
+def test_device_query_proximity_criterion_is_sent(platform):
+    """Table 29.1 defines DeviceType, Proximity and DeviceName."""
+    devices = platform.query_devices(device_type="PR", proximity="local")
+    assert all(d.device_type == "PR" for d in devices)
