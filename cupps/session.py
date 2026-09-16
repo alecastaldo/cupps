@@ -458,6 +458,15 @@ class DeviceSession(_BaseSession):
         a lock is held is an error the spec says will draw an
         ``illogicalMessageErrorEvent``, so it is refused locally instead.
         """
+        if self.mode is results.InterfaceMode.SPECIAL:
+            # Section 30.20 note: Special Mode devices (ZL, ZI) do not support
+            # locking, and attempting it draws an illogicalMessageErrorEvent
+            # that would tear down the session.
+            raise CuppsError(
+                f"{self.device.name} is a Special Mode device; locking one is "
+                f"an illogical message (section 30.20). The platform "
+                f"guarantees concurrent use without a lock."
+            )
         with self._state_lock:
             held = self._lock_method
         if held is not None and held is not method:

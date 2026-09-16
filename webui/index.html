@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232f7fe0'/%3E%3Ctext x='16' y='22' font-size='16' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'%3EC%3C/text%3E%3C/svg%3E">
+<title>CUPPS Agent</title>
+<style>
+:root{
+  --bg:#0f141b; --panel:#182029; --panel2:#1f2933; --line:#2b3745;
+  --ink:#e8eef5; --muted:#8fa2b7; --accent:#2f7fe0; --accent-ink:#fff;
+  --ok:#2ea36b; --warn:#d99b28; --bad:#d2453f; --idle:#5a6b7d;
+  --r:10px; --tap:48px;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#eef2f6; --panel:#fff; --panel2:#f4f7fa; --line:#d5dee7;
+         --ink:#16202b; --muted:#5c6f83; --idle:#94a5b6; }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.45 "Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+  -webkit-text-size-adjust:100%;overscroll-behavior:none}
+button{font:inherit;color:inherit}
+.app{display:flex;flex-direction:column;height:100vh;min-height:0}
+
+/* ---- header ---- */
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;
+  background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap}
+.brand{font-weight:700;font-size:18px;letter-spacing:.3px}
+.brand small{display:block;font-weight:400;font-size:11px;color:var(--muted);letter-spacing:.06em}
+.hdr-meta{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.hdr-meta b{display:block;color:var(--ink);font-size:13px;font-weight:600}
+.spacer{flex:1 1 auto}
+.conn{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
+  padding:6px 12px;border-radius:99px;background:var(--panel2);border:1px solid var(--line)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--idle);flex:0 0 auto}
+.dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)} .dot.warn{background:var(--warn)}
+.icon-btn{min-width:var(--tap);min-height:var(--tap);border:1px solid var(--line);
+  background:var(--panel2);border-radius:var(--r);cursor:pointer;font-size:16px}
+.icon-btn:active{background:var(--accent);color:var(--accent-ink)}
+
+/* ---- device strip (required by TS 11.2.5) ---- */
+.devices{display:flex;gap:8px;padding:10px 16px;overflow-x:auto;flex:0 0 auto;
+  background:var(--panel2);border-bottom:1px solid var(--line);scrollbar-width:thin}
+.dev{min-width:152px;flex:0 0 auto;background:var(--panel);border:1px solid var(--line);
+  border-left:4px solid var(--idle);border-radius:8px;padding:8px 10px;cursor:pointer}
+.dev.ok{border-left-color:var(--ok)} .dev.warn{border-left-color:var(--warn)}
+.dev.bad{border-left-color:var(--bad)}
+.dev .n{font-weight:700;font-size:13px;display:flex;gap:6px;align-items:center}
+.dev .t{font-size:11px;color:var(--muted)}
+.dev .s{font-size:11.5px;margin-top:3px}
+.badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;
+  background:var(--accent);color:var(--accent-ink);letter-spacing:.04em}
+
+/* ---- tabs ---- */
+nav{display:flex;gap:4px;padding:8px 16px 0;flex:0 0 auto;overflow-x:auto}
+nav button{min-height:var(--tap);padding:0 20px;border:1px solid var(--line);
+  border-bottom:none;background:var(--panel2);border-radius:var(--r) var(--r) 0 0;
+  cursor:pointer;font-weight:600;white-space:nowrap;color:var(--muted)}
+nav button[aria-selected=true]{background:var(--panel);color:var(--ink)}
+
+/* ---- main ---- */
+main{flex:1 1 auto;min-height:0;overflow:auto;padding:16px;background:var(--panel);
+  margin:0 16px 16px;border:1px solid var(--line);border-radius:0 var(--r) var(--r) var(--r)}
+.panel{display:none} .panel.on{display:block}
+h2{margin:0 0 14px;font-size:16px;letter-spacing:.02em}
+h3{margin:18px 0 8px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;
+  text-transform:uppercase;letter-spacing:.06em}
+input,select,textarea{width:100%;min-height:var(--tap);padding:10px 12px;background:var(--panel2);
+  border:1px solid var(--line);border-radius:8px;color:var(--ink);font:inherit}
+textarea{min-height:100px;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.btn{min-height:var(--tap);padding:0 22px;border-radius:8px;border:1px solid var(--line);
+  background:var(--panel2);cursor:pointer;font-weight:600}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:active:not(:disabled){transform:translateY(1px)}
+
+/* ---- scan ---- */
+.scan{border:2px dashed var(--line);border-radius:var(--r);padding:34px 20px;text-align:center;
+  background:var(--panel2)}
+.scan .big{font-size:20px;font-weight:700;margin-bottom:6px}
+.scan .sub{color:var(--muted);font-size:13px}
+.pax{margin-top:16px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.pax .top{padding:16px 18px;background:var(--panel2);border-bottom:1px solid var(--line)}
+.pax .nm{font-size:24px;font-weight:700;letter-spacing:.02em}
+.pax .fl{color:var(--muted);margin-top:4px;font-size:14px}
+.pax .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:1px;
+  background:var(--line)}
+.pax .f{background:var(--panel);padding:12px 14px}
+.pax .f span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.07em;margin-bottom:3px}
+.pax .f b{font-size:17px}
+.verdict{padding:14px 18px;font-weight:700;font-size:16px;display:flex;align-items:center;gap:10px}
+.verdict.ok{background:rgba(46,163,107,.16);color:var(--ok)}
+.verdict.bad{background:rgba(210,69,63,.16);color:var(--bad)}
+.verdict.warn{background:rgba(217,155,40,.16);color:var(--warn)}
+
+/* ---- tables & log ---- */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+td.act{white-space:nowrap}
+td.act button{min-height:38px;padding:0 12px;margin-right:5px;border-radius:6px;
+  border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:12px}
+.flags{display:flex;gap:4px;flex-wrap:wrap}
+.flag{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--muted)}
+.flag.on{background:var(--bad);border-color:var(--bad);color:#fff}
+.flag.on.good{background:var(--ok);border-color:var(--ok)}
+.log{font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.7}
+.log div{padding:3px 8px;border-bottom:1px solid var(--line);display:flex;gap:10px}
+.log .k{color:var(--accent);font-weight:600;min-width:150px}
+.log .tm{color:var(--muted);min-width:70px}
+
+/* ---- toast & modal ---- */
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;
+  display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
+  border-radius:8px;padding:12px 18px;box-shadow:0 6px 24px rgba(0,0,0,.35);font-weight:600;
+  max-width:min(560px,90vw)}
+.toast.ok{border-left-color:var(--ok)} .toast.bad{border-left-color:var(--bad)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:70;display:none;
+  align-items:center;justify-content:center;padding:20px}
+.modal.on{display:flex}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:24px;max-width:640px;width:100%;max-height:85vh;overflow:auto}
+.modal h2{margin-top:0}
+kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;
+  font-family:ui-monospace,monospace;font-size:12px}
+.muted{color:var(--muted)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px;margin:0}
+dt{color:var(--muted)} dd{margin:0}
+@media (max-width:900px){ main{margin:0 8px 8px} header{padding:8px 10px} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">CUPPS Agent<small id="b-sub">IATA CUPPS 01.04</small></div>
+    <div class="hdr-meta">
+      <div>Airline<b id="m-airline">-</b></div>
+      <div>Workstation<b id="m-ws">-</b></div>
+      <div>Position<b id="m-loc">-</b></div>
+      <div>Platform<b id="m-plat">-</b></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="conn"><span class="dot" id="c-dot"></span><span id="c-txt">Connecting</span></div>
+    <button class="icon-btn" id="btn-help" title="Help (F1)" aria-label="Help">?</button>
+    <button class="icon-btn" id="btn-about" title="About" aria-label="About">i</button>
+  </header>
+
+  <!-- Device status is displayed at all times: TS 01.04 section 11.2.5 -->
+  <div class="devices" id="devstrip"></div>
+
+  <nav id="tabs">
+    <button data-p="boarding" aria-selected="true">Boarding</button>
+    <button data-p="checkin"  aria-selected="false">Check-in</button>
+    <button data-p="bags"     aria-selected="false">Baggage</button>
+    <button data-p="devices"  aria-selected="false">Devices</button>
+    <button data-p="activity" aria-selected="false">Activity</button>
+  </nav>
+
+  <main>
+    <!-- BOARDING -->
+    <section class="panel on" id="p-boarding">
+      <h2>Boarding gate</h2>
+      <div class="scan">
+        <div class="big" id="scan-title">Ready to scan</div>
+        <div class="sub" id="scan-sub">Present a boarding pass to the barcode reader</div>
+      </div>
+      <div id="pax"></div>
+    </section>
+
+    <!-- CHECK-IN -->
+    <section class="panel" id="p-checkin">
+      <h2>Issue boarding pass</h2>
+      <div class="grid">
+        <div><label for="ci-name">Passenger name</label><input id="ci-name" placeholder="SMITH/JOHN MR"></div>
+        <div><label for="ci-pnr">Booking reference</label><input id="ci-pnr" placeholder="ABC123"></div>
+        <div><label for="ci-carrier">Carrier</label><input id="ci-carrier" maxlength="3" placeholder="BA"></div>
+        <div><label for="ci-flt">Flight number</label><input id="ci-flt" placeholder="0834"></div>
+        <div><label for="ci-from">From</label><input id="ci-from" maxlength="3" placeholder="LHR"></div>
+        <div><label for="ci-to">To</label><input id="ci-to" maxlength="3" placeholder="JFK"></div>
+        <div><label for="ci-date">Flight date</label><input id="ci-date" placeholder="22NOV"></div>
+        <div><label for="ci-brd">Boarding time</label><input id="ci-brd" placeholder="1745"></div>
+        <div><label for="ci-gate">Gate</label><input id="ci-gate" placeholder="B32"></div>
+        <div><label for="ci-seat">Seat</label><input id="ci-seat" placeholder="32A"></div>
+        <div><label for="ci-cabin">Cabin</label><input id="ci-cabin" placeholder="Economy"></div>
+        <div><label for="ci-seq">Sequence</label><input id="ci-seq" placeholder="0025"></div>
+        <div><label for="ci-ff">Frequent flyer</label><input id="ci-ff" placeholder=""></div>
+        <div><label for="ci-printer">Printer</label><select id="ci-printer"></select></div>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="ci-print">Print boarding pass</button>
+        <button class="btn" id="ci-receipt">Print itinerary receipt</button>
+        <button class="btn" id="ci-clear">Clear</button>
+      </div>
+    </section>
+
+    <!-- BAGGAGE -->
+    <section class="panel" id="p-bags">
+      <h2>Print bag tag</h2>
+      <div class="grid">
+        <div><label for="bg-name">Passenger name</label><input id="bg-name" placeholder="SMITH/JOHN MR"></div>
+        <div><label for="bg-lpn">Licence plate (10 digits)</label><input id="bg-lpn" maxlength="10" placeholder="0125123456"></div>
+        <div><label for="bg-from">From</label><input id="bg-from" maxlength="3"></div>
+        <div><label for="bg-via">Via</label><input id="bg-via" maxlength="3"></div>
+        <div><label for="bg-to">To</label><input id="bg-to" maxlength="3"></div>
+        <div><label for="bg-carrier">Carrier</label><input id="bg-carrier" maxlength="3"></div>
+        <div><label for="bg-flt">Flight number</label><input id="bg-flt"></div>
+        <div><label for="bg-date">Flight date</label><input id="bg-date" placeholder="22NOV"></div>
+        <div><label for="bg-wt">Weight (kg)</label><input id="bg-wt" type="number" step="0.1" inputmode="decimal"></div>
+        <div><label for="bg-n">Bag number</label><input id="bg-n" type="number" value="1" min="1"></div>
+        <div><label for="bg-of">Of</label><input id="bg-of" type="number" value="1" min="1"></div>
+        <div><label for="bg-printer">Printer</label><select id="bg-printer"></select></div>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="bg-print">Print bag tag</button>
+        <button class="btn" id="bg-clear">Clear</button>
+      </div>
+    </section>
+
+    <!-- DEVICES -->
+    <section class="panel" id="p-devices">
+      <h2>Devices</h2>
+      <table><thead><tr>
+        <th>Device</th><th>Type</th><th>Mode</th><th>Status</th><th>Flags</th><th>Actions</th>
+      </tr></thead><tbody id="devtable"></tbody></table>
+
+      <h3>AEA command (BP / BT / BG)</h3>
+      <p class="muted" style="font-size:12.5px;margin:0 0 10px">
+        CUPPS carries AEA streams but does not define them. Paste the stream your
+        host system produced; the printer's firmware interprets it.
+      </p>
+      <div class="grid" style="grid-template-columns:minmax(200px,280px) 1fr">
+        <div><label for="aea-dev">Device</label><select id="aea-dev"></select></div>
+        <div><label for="aea-cmd">Stream</label><textarea id="aea-cmd" placeholder="LT211909"></textarea></div>
+      </div>
+      <div class="row"><button class="btn primary" id="aea-send">Send AEA stream</button></div>
+    </section>
+
+    <!-- ACTIVITY -->
+    <section class="panel" id="p-activity">
+      <h2>Activity</h2>
+      <div class="row" style="margin-top:0">
+        <button class="btn" id="act-log">Load platform (ZL) log</button>
+        <button class="btn" id="act-clear">Clear view</button>
+      </div>
+      <div class="log" id="log" style="margin-top:14px"></div>
+    </section>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<div class="modal" id="m-help"><div class="box">
+  <h2>Help</h2>
+  <dl>
+    <dt><kbd>F1</kbd></dt><dd>This help</dd>
+    <dt><kbd>Alt</kbd>+<kbd>F4</kbd></dt><dd>Close the application</dd>
+    <dt><kbd>Esc</kbd></dt><dd>Close a dialog / clear the scanned passenger</dd>
+    <dt><kbd>F2</kbd>..<kbd>F6</kbd></dt><dd>Switch between screens</dd>
+  </dl>
+  <h3>Device status colours</h3>
+  <dl>
+    <dt><span class="flag on good">green</span></dt><dd>Ready for use</dd>
+    <dt><span class="flag on">red</span></dt><dd>Powered off, unknown, or faulted</dd>
+    <dt><span class="flag">amber</span></dt><dd>Online but needs attention, e.g. out of paper</dd>
+  </dl>
+  <p class="muted">Device status is refreshed from the platform's asynchronous
+  notifications, so the strip along the top always reflects the live state.</p>
+  <div class="row"><button class="btn primary" data-close>Close</button></div>
+</div></div>
+
+<div class="modal" id="m-about"><div class="box">
+  <h2>About</h2>
+  <dl>
+    <dt>Application</dt><dd id="a-app">-</dd>
+    <dt>Version</dt><dd id="a-ver">-</dd>
+    <dt>Specification</dt><dd>CUPPS Technical Specification 01.04.0004 (02JUN2021)</dd>
+    <dt>Interface levels</dt><dd id="a-levels">-</dd>
+    <dt>Negotiated level</dt><dd id="a-level">-</dd>
+    <dt>Platform</dt><dd id="a-plat">-</dd>
+    <dt>Workstation</dt><dd id="a-ws">-</dd>
+  </dl>
+  <div class="row"><button class="btn primary" data-close>Close</button></div>
+</div></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const state = { devices: [], snapshot: {}, pax: null };
+
+/* ---------- helpers ---------- */
+function toast(msg, kind){
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " " + kind : "");
+  el.textContent = msg;
+  $("toast").appendChild(el);
+  setTimeout(() => el.remove(), 5200);
+}
+async function api(path, body){
+  const opts = body === undefined
+    ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)};
+  const res = await fetch(path, opts);
+  const text = await res.text();
+  let data = {};
+  try { data = text ? JSON.parse(text) : {}; } catch { data = {error:text}; }
+  if(!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+  return data;
+}
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- header / connection ---------- */
+function renderHeader(s){
+  $("m-airline").textContent = s.airlineName || s.airline || "-";
+  $("m-ws").textContent      = s.workstation || "-";
+  $("m-loc").textContent     = s.location || "-";
+  $("m-plat").textContent    = [s.platformVendor, s.platformVersion].filter(Boolean).join(" ") || "-";
+  $("b-sub").textContent     = "IATA CUPPS " + (s.interfaceLevel || "01.04");
+
+  const connected = !!s.connected, steady = s.state === "aStd";
+  $("c-dot").className = "dot " + (steady ? "ok" : connected ? "warn" : "bad");
+  $("c-txt").textContent = steady ? "Connected"
+    : connected ? ("Starting (" + s.state + ")")
+    : (s.lastError ? "Disconnected" : "Connecting");
+
+  $("a-app").textContent   = s.application || "-";
+  $("a-ver").textContent   = s.applicationVersion || "-";
+  $("a-level").textContent = s.interfaceLevel || "-";
+  $("a-plat").textContent  = [s.platformVendor, s.platformVersion].filter(Boolean).join(" ") || "-";
+  $("a-ws").textContent    = s.workstation || "-";
+}
+
+/* ---------- devices ---------- */
+function devClass(d){
+  if(!d.usable) return "bad";
+  const f = d.flags || {};
+  return (f.paperOut || f.paperJam || f.diskError) ? "warn" : "ok";
+}
+function renderDevices(devices){
+  state.devices = devices || [];
+  const strip = $("devstrip");
+  strip.innerHTML = state.devices.length ? "" :
+    '<div class="dev"><div class="n">No devices</div><div class="t">waiting for the platform</div></div>';
+  for(const d of state.devices){
+    const el = document.createElement("div");
+    el.className = "dev " + devClass(d);
+    el.title = d.typeName + " - " + d.vendor + " " + d.model;
+    el.innerHTML = '<div class="n">' + esc(d.type) +
+      (d.locked ? ' <span class="badge">LOCK</span>' : "") + '</div>' +
+      '<div class="t">' + esc(d.name) + '</div>' +
+      '<div class="s">' + esc(d.summary) + '</div>';
+    el.onclick = () => showPanel("devices");
+    strip.appendChild(el);
+  }
+
+  const tbody = $("devtable");
+  tbody.innerHTML = "";
+  for(const d of state.devices){
+    const flags = Object.entries(d.flags || {}).map(([k,v]) => {
+      const good = (k === "ready");
+      const on = v ? " on" + (good ? " good" : "") : "";
+      return '<span class="flag' + on + '">' + esc(k) + '</span>';
+    }).join("");
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td><b>' + esc(d.name) + '</b><br><span class="muted" style="font-size:11px">' +
+        esc(d.vendor + " " + d.model) + '</span></td>' +
+      '<td>' + esc(d.type) + '</td><td>' + esc(d.mode) + '</td>' +
+      '<td>' + esc(d.summary) + '</td><td><div class="flags">' + flags + '</div></td>' +
+      '<td class="act">' +
+        '<button data-a="status" data-d="' + esc(d.name) + '">Status</button>' +
+        '<button data-a="test"   data-d="' + esc(d.name) + '">Test</button>' +
+        (d.lockable
+          ? '<button data-a="' + (d.locked ? "unlock" : "lock") + '" data-d="' + esc(d.name) + '">' +
+              (d.locked ? "Unlock" : "Lock") + '</button>'
+          : '<span class="muted" style="font-size:11px">no locking</span>') +
+      '</td>';
+    tbody.appendChild(tr);
+  }
+
+  const printers = state.devices.filter(d => d.type === "PR").map(d => d.name);
+  fillSelect("ci-printer", printers);
+  fillSelect("bg-printer", printers);
+  fillSelect("aea-dev", state.devices.filter(d => d.mode === "aea").map(d => d.name));
+}
+function fillSelect(id, names){
+  const el = $(id), keep = el.value;
+  el.innerHTML = names.length
+    ? names.map(n => '<option>' + esc(n) + '</option>').join("")
+    : '<option value="">none available</option>';
+  if(names.includes(keep)) el.value = keep;
+}
+$("devtable").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("button[data-a]");
+  if(!btn) return;
+  const {a, d} = btn.dataset;
+  btn.disabled = true;
+  try{
+    const r = await api("/api/device/" + encodeURIComponent(d) + "/" + a, {});
+    if(a === "test")   toast(d + " test: " + r.result + " - " + (r.detail||""), r.result === "OK" ? "ok" : "bad");
+    if(a === "lock")   toast(d + " locked (" + r.result + ")", "ok");
+    if(a === "unlock") toast(d + " unlocked", "ok");
+    if(a === "status") toast(d + ": " + r.summary, "ok");
+  }catch(e){ toast(d + ": " + e.message, "bad"); }
+  finally{ btn.disabled = false; }
+});
+
+/* ---------- boarding ---------- */
+function renderPax(ev){
+  const bp = ev.boardingPass;
+  state.pax = ev;
+  if(!bp){
+    $("scan-title").textContent = "Barcode read";
+    $("scan-sub").textContent = "Not a boarding pass (" + (ev.symbology || "unknown") + ")";
+    $("pax").innerHTML = '<div class="pax"><div class="top"><div class="nm">Unrecognised barcode</div>' +
+      '<div class="fl">' + esc((ev.text||"").slice(0,80)) + '</div></div></div>';
+    return;
+  }
+  $("scan-title").textContent = "Boarding pass read";
+  $("scan-sub").textContent = "Present the next passenger when ready";
+
+  let cls = "ok", msg = "BOARD - proceed to aircraft";
+  if(bp.selectee){ cls = "warn"; msg = "SECONDARY SCREENING REQUIRED (SSSS)"; }
+  else if(!bp.checkedIn){ cls = "bad"; msg = "NOT CHECKED IN - refer to agent"; }
+
+  const f = (label, value) => '<div class="f"><span>' + label + '</span><b>' +
+    esc(value || "-") + '</b></div>';
+  $("pax").innerHTML =
+    '<div class="pax">' +
+      '<div class="top"><div class="nm">' + esc(bp.name) + '</div>' +
+      '<div class="fl">' + esc(bp.flight) + " &middot; " + esc(bp.origin) + " &rarr; " +
+        esc(bp.destination) + (bp.date ? " &middot; " + esc(bp.date) : "") + '</div></div>' +
+      '<div class="verdict ' + cls + '">' + esc(msg) + '</div>' +
+      '<div class="fields">' + f("Seat", bp.seat) + f("Cabin", bp.cabin) +
+        f("Sequence", bp.sequence) + f("PNR", bp.pnr) + f("Legs", bp.legs) +
+        f("Ticket", bp.electronicTicket ? "Electronic" : "Paper") + '</div>' +
+      '<div class="f" style="padding:10px 14px;border-top:1px solid var(--line)">' +
+        '<span>Status</span><b style="font-size:14px">' + esc(bp.status) + '</b></div>' +
+    '</div>';
+}
+
+/* ---------- forms ---------- */
+const val = (id) => $(id).value.trim();
+function checkinBody(){
+  return {
+    name: val("ci-name"), pnr: val("ci-pnr"), carrier: val("ci-carrier").toUpperCase(),
+    flightNumber: val("ci-flt"), origin: val("ci-from").toUpperCase(),
+    destination: val("ci-to").toUpperCase(), flightDate: val("ci-date"),
+    boardingTime: val("ci-brd"), gate: val("ci-gate"), seat: val("ci-seat"),
+    cabin: val("ci-cabin"), sequence: val("ci-seq"), frequentFlyer: val("ci-ff"),
+    device: val("ci-printer") || undefined,
+  };
+}
+async function submit(btn, fn){
+  btn.disabled = true;
+  try{ await fn(); }
+  catch(e){ toast(e.message, "bad"); }
+  finally{ btn.disabled = false; }
+}
+$("ci-print").onclick = (e) => submit(e.target, async () => {
+  if(!val("ci-name")) throw new Error("Passenger name is required");
+  const r = await api("/api/print/boardingpass", checkinBody());
+  const bad = (r.results||[]).filter(x => !x.ok);
+  if(bad.length) toast("Print reported: " + bad.map(x=>x.result).join(", "), "bad");
+  else if(!r.barcodeRendered) toast("Printed, but WITHOUT the 2D barcode - see Activity", "bad");
+  else toast("Boarding pass printed on " + r.device, "ok");
+});
+$("ci-receipt").onclick = (e) => submit(e.target, async () => {
+  const r = await api("/api/print/receipt", {...checkinBody(), stock:"A4"});
+  toast("Receipt printed on " + r.device, "ok");
+});
+$("ci-clear").onclick = () => ["ci-name","ci-pnr","ci-flt","ci-seat","ci-seq","ci-ff"]
+  .forEach(id => $(id).value = "");
+
+$("bg-print").onclick = (e) => submit(e.target, async () => {
+  if(!val("bg-lpn")) throw new Error("Licence plate is required");
+  const r = await api("/api/print/bagtag", {
+    name: val("bg-name"), licencePlate: val("bg-lpn"),
+    origin: val("bg-from").toUpperCase(), via: val("bg-via").toUpperCase(),
+    destination: val("bg-to").toUpperCase(), carrier: val("bg-carrier").toUpperCase(),
+    flightNumber: val("bg-flt"), flightDate: val("bg-date"),
+    weightKg: val("bg-wt") ? Number(val("bg-wt")) : null,
+    bagNumber: Number(val("bg-n")) || 1, bagCount: Number(val("bg-of")) || 1,
+    device: val("bg-printer") || undefined,
+  });
+  const bad = (r.results||[]).filter(x => !x.ok);
+  toast(bad.length ? "Bag tag: " + bad.map(x=>x.result).join(", ")
+                   : "Bag tag " + r.licencePlate + " printed", bad.length ? "bad" : "ok");
+});
+$("bg-clear").onclick = () => ["bg-name","bg-lpn","bg-wt"].forEach(id => $(id).value = "");
+
+$("aea-send").onclick = (e) => submit(e.target, async () => {
+  const device = val("aea-dev"), stream = $("aea-cmd").value;
+  if(!device) throw new Error("No AEA mode device is available");
+  if(!stream)  throw new Error("Enter the AEA stream to send");
+  await api("/api/aea", {device, stream});
+  toast("Sent " + stream.length + " bytes to " + device, "ok");
+});
+
+/* ---------- activity ---------- */
+function addLog(ev){
+  const box = $("log");
+  const row = document.createElement("div");
+  const {kind, at, ...rest} = ev;
+  row.innerHTML = '<span class="tm">' + esc((at||"").slice(11,19)) + '</span>' +
+    '<span class="k">' + esc(kind) + '</span>' +
+    '<span>' + esc(JSON.stringify(rest).slice(0,220)) + '</span>';
+  box.prepend(row);
+  while(box.childElementCount > 300) box.lastElementChild.remove();
+}
+$("act-log").onclick = (e) => submit(e.target, async () => {
+  const r = await api("/api/log");
+  if(!r.entries.length){ toast("The platform log is empty", "ok"); return; }
+  r.entries.slice().reverse().forEach(t => addLog({kind:"zl", at:"", text:t}));
+  toast("Loaded " + r.entries.length + " log entries", "ok");
+});
+$("act-clear").onclick = () => $("log").innerHTML = "";
+
+/* ---------- tabs, dialogs, keys ---------- */
+function showPanel(name){
+  document.querySelectorAll("#tabs button").forEach(b =>
+    b.setAttribute("aria-selected", String(b.dataset.p === name)));
+  document.querySelectorAll(".panel").forEach(p =>
+    p.classList.toggle("on", p.id === "p-" + name));
+}
+$("tabs").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-p]");
+  if(b) showPanel(b.dataset.p);
+});
+const openModal  = (id) => $(id).classList.add("on");
+const closeModal = () => document.querySelectorAll(".modal").forEach(m => m.classList.remove("on"));
+$("btn-help").onclick  = () => openModal("m-help");
+$("btn-about").onclick = () => openModal("m-about");
+document.querySelectorAll("[data-close]").forEach(b => b.onclick = closeModal);
+document.querySelectorAll(".modal").forEach(m =>
+  m.onclick = (e) => { if(e.target === m) closeModal(); });
+
+// Section 11.3: F1 is the universal help key and Alt-F4 exits.
+const PANELS = ["boarding","checkin","bags","devices","activity"];
+window.addEventListener("keydown", (ev) => {
+  if(ev.key === "F1"){ ev.preventDefault(); openModal("m-help"); return; }
+  if(ev.key === "F4" && ev.altKey){ ev.preventDefault(); window.close(); return; }
+  if(ev.key === "Escape"){
+    if(document.querySelector(".modal.on")) closeModal();
+    else { state.pax = null; $("pax").innerHTML = ""; $("scan-title").textContent = "Ready to scan"; }
+    return;
+  }
+  const n = PANELS.indexOf("") , m = /^F([2-6])$/.exec(ev.key);
+  if(m){ ev.preventDefault(); showPanel(PANELS[Number(m[1]) - 2]); }
+});
+
+/* ---------- event stream ---------- */
+function handle(ev){
+  if(ev.kind === "snapshot"){ state.snapshot = ev; renderHeader(ev); renderDevices(ev.devices); return; }
+  addLog(ev);
+  switch(ev.kind){
+    case "boardingPassScanned":
+    case "barcodeScanned":
+      renderPax(ev); showPanel("boarding"); break;
+    case "cardRead":
+      toast("Card read on " + ev.device + " (" + (ev.tracks||[]).length + " tracks)", "ok"); break;
+    case "deviceStatus": case "deviceAcquired": case "deviceLocked":
+    case "deviceUnlocked": case "lockExpired":
+      refresh(); break;
+    case "platformConnected": toast("Connected to the CUPPS platform", "ok"); refresh(); break;
+    case "platformDisconnected": toast("Platform connection lost - reconnecting", "bad"); refresh(); break;
+    case "stateChanged": refresh(); break;
+    case "deviceError": toast(ev.device + ": " + ev.reason, "bad"); break;
+    case "deviceUnavailable": toast(ev.device + " unavailable: " + ev.reason, "bad"); break;
+    case "stopRequested": toast("The platform asked this application to close", "bad"); break;
+  }
+}
+let refreshTimer = null;
+function refresh(){
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(async () => {
+    try{
+      const s = await api("/api/state");
+      state.snapshot = s; renderHeader(s); renderDevices(s.devices);
+    }catch(e){ /* the stream will reconnect and re-prime */ }
+  }, 120);
+}
+function connect(){
+  const src = new EventSource("/api/events");
+  src.onmessage = (m) => { try{ handle(JSON.parse(m.data)); }catch(e){} };
+  src.onerror = () => {
+    $("c-dot").className = "dot bad";
+    $("c-txt").textContent = "Reconnecting";
+    src.close();
+    setTimeout(connect, 2000);
+  };
+}
+refresh();
+connect();
+</script>
+</body>
+</html>

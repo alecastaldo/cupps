@@ -43,6 +43,9 @@ PRINTER_TYPES = frozenset({"BP", "BT", "PR"})
 #: Macro devices whose lock implicitly covers their sub-devices (26.13.3).
 MACRO_TYPES = frozenset({"BG"})
 
+#: Special Mode software devices, which do not support locking (30.20 note).
+SPECIAL_MODE_TYPES = frozenset({"ZL", "ZI"})
+
 
 @dataclass(frozen=True)
 class DeviceStatus:
@@ -202,6 +205,15 @@ class Device:
     @property
     def is_macro(self) -> bool:
         return self.device_type in MACRO_TYPES
+
+    @property
+    def is_lockable(self) -> bool:
+        """False for Special Mode devices, which do not support locking.
+
+        Section 30.20 note: attempting to lock or unlock a ZL or ZI draws an
+        ``illogicalMessageErrorEvent``.
+        """
+        return self.device_type not in SPECIAL_MODE_TYPES
 
     def supports(self, mode: InterfaceMode) -> bool:
         return mode in self.modes
