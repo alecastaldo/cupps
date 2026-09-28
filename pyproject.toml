@@ -22,7 +22,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=7", "pypdf>=3"]
+test = ["pytest>=7", "pypdf>=3", "pyserial>=3.5"]
+# Serial peripherals: barcode readers, AEA printers, scales on RS-232 or USB.
+serial = ["pyserial>=3.5"]
+# Printing through the Windows spooler on a CUPPS workstation.
+spooler = ["pywin32>=305; sys_platform == 'win32'"]
 # Full XSD validation of interface messages against the platform's published
 # schemas. See docs/DEPLOYMENT.md section 6.
 validation = ["lxml>=4.9"]
@@ -30,9 +34,10 @@ validation = ["lxml>=4.9"]
 [project.scripts]
 cuppsd = "cuppsd.__main__:main"
 cuppsit = "cuppsit:main"
+cupps-labbench = "tools.labbench:main"
 
 [tool.setuptools]
-packages = ["cupps", "cuppsd", "simulator"]
+packages = ["cupps", "cuppsd", "cuppsplatform", "cuppsplatform.drivers", "simulator", "conformance", "tools"]
 py-modules = ["cuppsit"]
 
 [tool.setuptools.package-data]
