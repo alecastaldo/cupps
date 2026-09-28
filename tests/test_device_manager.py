@@ -354,3 +354,56 @@ def test_state_changes_reach_the_bus(bus, clock):
     assert "dStgEnteredEvent" in seen
     assert "dStdEnteredEvent" in seen
     assert "dLkdEnteredEvent" in seen
+
+
+def test_a_stalled_application_does_not_freeze_the_device(bus, clock):
+    """Notifications must not be delivered while the device lock is held.
+
+    Lock expiry notifies every acquiring application. If that delivery runs
+    inside the device's own mutex, one application whose socket has stopped
+    draining blocks every other application from touching the device -- a
+    shared boarding pass printer frozen by one wedged gate client. Delivery
+    therefore happens after the device's state is already consistent and its
+    mutex released.
+    """
+    import threading
+
+    device = make_device(bus, clock)
+    stalled = threading.Event()
+    release = threading.Event()
+
+    def slow_notify(event):
+        stalled.set()
+        release.wait(timeout=5)
+
+    slow = AcquiredSession(
+        session_id=1, device_token="token-a", airline_id="BA",
+        interface_mode=InterfaceMode.STANDARD, notify=slow_notify,
+        application_name="SLOW",
+    )
+    device.acquire(slow)
+    device.lock(slow, LockMethod.BY_CONNECTION)
+
+    expiry = threading.Thread(
+        target=lambda: clock.advance(params.DEV_LKD_TIME * 1.02), daemon=True
+    )
+    expiry.start()
+    assert stalled.wait(timeout=5), "the notification never ran"
+
+    # While that application is wedged mid-delivery, the device must still
+    # answer other callers.
+    answered = threading.Event()
+
+    def other_caller():
+        _ = device.state
+        _ = device.locked
+        _ = device.acquired_by
+        answered.set()
+
+    threading.Thread(target=other_caller, daemon=True).start()
+    assert answered.wait(timeout=3), (
+        "the device was frozen by a stalled application's notification"
+    )
+
+    release.set()
+    expiry.join(timeout=5)

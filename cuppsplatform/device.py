@@ -207,11 +207,14 @@ class ManagedDevice:
         with self._lock:
             if self.machine.state in (DeviceState.STP, DeviceState.SPG):
                 return
-            self._release_lock_internal(notify=True, reason="device stopping")
+            pending = self._release_lock_internal(
+                notify=True, reason="device stopping"
+            )
             self.machine.enter(DeviceState.SPG, reason="device shutdown")
             self._arm_lifecycle(
                 params.DEV_SPG_TIME, self._shutdown_expired, "DevSpgTime"
             )
+        self._deliver(pending)
         for sub in self.sub_devices:
             sub.stop()
 
@@ -463,35 +466,63 @@ class ManagedDevice:
                 "%s lock expired after DevLkdTime (%.0fs)",
                 self.name, params.DEV_LKD_TIME,
             )
-            self._release_lock_internal(notify=True, reason="DevLkdTime expired")
+            pending = self._release_lock_internal(
+                notify=True, reason="DevLkdTime expired"
+            )
+        self._deliver(pending)
 
-    def _release_lock_internal(self, *, notify: bool, reason: str) -> None:
+    def _release_lock_internal(
+        self, *, notify: bool, reason: str
+    ) -> Optional[tuple[Event, list[AcquiredSession]]]:
+        """Drop the lock and return the delivery the caller must make.
+
+        This only mutates state. Delivery is deliberately *not* done here:
+        it is returned so the caller can perform it after releasing the
+        device's mutex. See :meth:`_deliver`.
+        """
         holder, self._holder = self._holder, None
         self._token_lock_sessions.clear()
         if self._lock_timer is not None:
             self._lock_timer.cancel()
             self._lock_timer = None
         if holder is None:
-            return
+            return None
 
         self._unlock_sub_devices()
         if self.machine.state in (DeviceState.LKD, DeviceState.BSY):
             self.machine.enter(DeviceState.STD, reason=reason)
 
-        if notify:
-            # Every application that has the device acquired is told, not
-            # only the lock's owner (section 26.13.2).
-            event = Event(
-                name="deviceLockExpiredEvent",
-                subject=self.name,
-                attributes={"reason": reason},
-            )
-            self._bus.raise_event(event)
-            for session in list(self._sessions.values()):
-                try:
-                    session.notify(event)
-                except Exception:  # pragma: no cover - session is caller code
-                    log.exception("notifying %s of lock expiry failed", self.name)
+        if not notify:
+            return None
+        # Every application that has the device acquired is told, not only
+        # the lock's owner (section 26.13.2).
+        event = Event(
+            name="deviceLockExpiredEvent",
+            subject=self.name,
+            attributes={"reason": reason},
+        )
+        return event, list(self._sessions.values())
+
+    def _deliver(
+        self, pending: Optional[tuple[Event, list[AcquiredSession]]]
+    ) -> None:
+        """Publish a pending notification, with the device mutex released.
+
+        An application whose socket has stopped draining will block here.
+        Holding the device mutex across that would let one wedged client
+        freeze a shared device for every other application, which in an
+        airport means one stuck gate position taking out a boarding pass
+        printer.
+        """
+        if pending is None:
+            return
+        event, sessions = pending
+        self._bus.raise_event(event)
+        for session in sessions:
+            try:
+                session.notify(event)
+            except Exception:  # pragma: no cover - session is caller code
+                log.exception("notifying %s of lock expiry failed", self.name)
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"<ManagedDevice {self.name} {self.device_type} {self.state.value}>"
