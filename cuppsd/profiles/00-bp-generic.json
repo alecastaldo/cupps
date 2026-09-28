@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "generic-bp",
+  "description": "Any AEA Mode boarding pass printer",
+  "verified": true,
+  "notes": "Baseline for BP devices. BP is AEA Mode only in CUPPS 01.04 (Table 3.3 note 5), so the printer firmware renders text and barcodes; the application passes the host's AEA stream through unchanged.",
+  "match": { "deviceType": "BP" },
+  "aea": { "minimumRevision": "2009", "openingCommands": [] },
+  "status": { "reportsPaperJamIndependently": true },
+  "timing": { "printTimeoutSeconds": 120.0 }
+}

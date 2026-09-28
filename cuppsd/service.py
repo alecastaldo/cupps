@@ -25,6 +25,7 @@ import queue
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Iterable, Optional
@@ -56,6 +57,7 @@ from cupps.bcbp import BcbpError
 from cupps.errors import ConnectionClosed
 
 from . import aea as aea_helpers
+from .deviceprofile import DeviceProfile, ProfileRegistry, default_profile
 
 log = logging.getLogger("cuppsd.service")
 
@@ -112,6 +114,8 @@ class DeviceHandle:
     printer: Optional[Printer] = None
     log_device: Optional[LogDevice] = None
     last_error: str = ""
+    #: Peripheral behaviour resolved from the profile catalogue.
+    profile: Optional[DeviceProfile] = None
 
     @property
     def name(self) -> str:
@@ -124,6 +128,26 @@ class DeviceHandle:
     @property
     def status(self) -> DeviceStatus:
         return self.session.status
+
+    def status_summary(self) -> str:
+        """One line for the agent's device panel, adjusted for this device.
+
+        Section 30.2 notes that not every printer can tell a jam from an empty
+        paper path. Telling an agent to clear a jam on a device that cannot
+        actually detect one sends them looking for a fault that may not exist,
+        so such a device reports the ambiguity instead.
+        """
+        status = self.status
+        behaviour = (self.profile or default_profile(self.device_type)).status
+        if (
+            status.paper_jam
+            and not behaviour.reports_paper_jam_independently
+        ):
+            return "Check the paper path (jam or out of paper)"
+        summary = status.summary(self.device_type)
+        if status.power_off and behaviour.retains_error_across_power_cycle:
+            summary += "; this device keeps its error across a power cycle"
+        return summary
 
     def to_dict(self) -> dict[str, Any]:
         status = self.status
@@ -139,7 +163,9 @@ class DeviceHandle:
             "lockMethod": (
                 self.session.lock_method.value if self.session.lock_method else None
             ),
-            "summary": status.summary(self.device_type),
+            "summary": self.status_summary(),
+            "profile": self.profile.profile_id if self.profile else None,
+            "profileVerified": bool(self.profile and self.profile.verified),
             "usable": status.usable,
             "flags": status.flags_for(self.device_type),
             "stocks": [stock.stock_name for stock in self.device.stocks],
@@ -166,6 +192,9 @@ class ServiceConfig:
     #: Seconds between reconnection attempts after the platform drops.
     reconnect_delay: float = 5.0
     airline_name: str = ""
+    #: Extra directories of device profiles, searched after the shipped
+    #: catalogue so a site can override without editing shipped files.
+    profile_directories: tuple[str, ...] = ()
 
     @classmethod
     def from_environment(
@@ -219,6 +248,16 @@ class CuppsService:
         self._supervisor: Optional[threading.Thread] = None
         self._stop_deferrals = 0
         self._zl: Optional[DeviceHandle] = None
+        self.profiles = ProfileRegistry.load(
+            *(Path(d) for d in config.profile_directories)
+        )
+        unverified = [p.profile_id for p in self.profiles.unverified]
+        if unverified:
+            log.info(
+                "%d device profile(s) are unverified against real hardware: %s",
+                len(unverified),
+                ", ".join(unverified),
+            )
 
     # -- events -----------------------------------------------------------
 
@@ -373,7 +412,25 @@ class CuppsService:
             mode=mode,
         )
         acquired = session.open()
-        handle = DeviceHandle(device=acquired, session=session, mode=mode)
+        profile = self.profiles.resolve(acquired)
+        handle = DeviceHandle(
+            device=acquired, session=session, mode=mode, profile=profile
+        )
+
+        if profile.timing.warmup_seconds:
+            time.sleep(profile.timing.warmup_seconds)
+
+        if mode is InterfaceMode.AEA and profile.aea.opening_commands:
+            # Sent after the mandatory EP, which cupps.session already issued.
+            for command in profile.aea.opening_commands:
+                try:
+                    session.aea(*aea_helpers.segment(command))
+                except CuppsError as exc:
+                    handle.last_error = str(exc)
+                    log.warning(
+                        "%s rejected opening command from profile %s: %s",
+                        acquired.name, profile.profile_id, exc,
+                    )
 
         if acquired.is_reader:
             handle.reader = Reader(session, device_token=token)
@@ -654,6 +711,10 @@ class CuppsService:
                 f"device (Table 3.3 note 5)"
             )
         documents = list(documents)
+        profile = handle.profile or default_profile(handle.device_type)
+        # Stock names are site configuration, not a standard (section 30.15.3).
+        for document in documents:
+            document.stock_name = profile.stocks.resolve(document.stock_name)
         took_lock = False
         try:
             if not handle.session.locked:

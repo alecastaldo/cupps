@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "pr-site-stock-aliases",
+  "description": "Example of mapping application stock names onto platform stock names",
+  "verified": false,
+  "notes": "TEMPLATE -- stock names are site configuration, not a standard. One platform calls a boarding pass 'BP' and another 'ATB2'. Section 30.15.3 also lets an application register an alias with the platform; this profile does the mapping locally instead, which needs no platform round trip. Set the model pattern to the printers at the site that uses these names.",
+  "match": {
+    "deviceType": "PR",
+    "model": "(?i)^CONFIRM-MODEL-FOR-STOCK-ALIASES$"
+  },
+  "stocks": {
+    "aliases": {
+      "BP": "ATB2",
+      "BT": "BAGTAG",
+      "A4": "PLAIN-A4"
+    }
+  }
+}

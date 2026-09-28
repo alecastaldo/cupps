@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "generic-pr",
+  "description": "Any Standard Mode printer behaving exactly as the specification describes",
+  "verified": true,
+  "notes": "Baseline for PR devices. Verified against the bundled simulator, which implements the specification without quirks. Real hardware usually needs a narrower profile on top.",
+  "match": { "deviceType": "PR" },
+  "status": {
+    "reportsPaperJamIndependently": true,
+    "retainsErrorAcrossPowerCycle": false,
+    "paperOutClearsReady": false
+  },
+  "stocks": {
+    "dimensions": {
+      "BP": [210.0, 99.0],
+      "BT": [51.0, 508.0],
+      "A4": [210.0, 297.0]
+    }
+  },
+  "timing": { "printTimeoutSeconds": 120.0 }
+}

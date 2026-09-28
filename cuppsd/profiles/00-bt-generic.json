@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "generic-bt",
+  "description": "Any AEA Mode baggage tag printer",
+  "verified": true,
+  "notes": "Baseline for BT devices. Where the device and stock support RFID encoding, section 30 recommends a minimum ITPS 2019 revision; set minimumRevision on a narrower profile for those.",
+  "match": { "deviceType": "BT" },
+  "aea": { "minimumRevision": "2009", "openingCommands": [] },
+  "status": { "reportsPaperJamIndependently": true },
+  "timing": { "printTimeoutSeconds": 120.0 }
+}

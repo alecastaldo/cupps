@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "pr-no-jam-detection",
+  "description": "Standard Mode printers that cannot distinguish a paper jam from an empty paper path",
+  "verified": false,
+  "notes": "TEMPLATE -- confirm against the hardware before enabling. Section 30.2: 'Some printers are capable of reporting paperJam independently of paperOut; some are not.' On such a device a paperJam report is unreliable, so the agent is told to check the paper path rather than being sent to clear a jam that may not exist. Narrow the model pattern to the printers you have actually tested.",
+  "match": {
+    "deviceType": "PR",
+    "model": "(?i)^CONFIRM-MODEL-WITHOUT-JAM-SENSOR$"
+  },
+  "status": {
+    "reportsPaperJamIndependently": false,
+    "retainsErrorAcrossPowerCycle": true
+  },
+  "timing": {
+    "printTimeoutSeconds": 90.0
+  }
+}

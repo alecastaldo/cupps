@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "bt-rfid-itps2019",
+  "description": "Baggage tag printers encoding RFID, requiring ITPS 2019",
+  "verified": false,
+  "notes": "TEMPLATE -- confirm against the hardware before enabling. Section 30 recommends a minimum ITPS 2019 (formerly AEA) revision when encoding RFID in a bag tag printer. The device descriptor's rfidCapabilities element reports which generations the device supports; match on the models your stations actually run.",
+  "match": {
+    "deviceType": "BT",
+    "model": "(?i)^CONFIRM-MODEL-WITH-RFID$"
+  },
+  "aea": {
+    "minimumRevision": "2019",
+    "templates": {
+      "encodeTag": "RF{licencePlate}"
+    }
+  },
+  "timing": {
+    "printTimeoutSeconds": 150.0
+  }
+}
