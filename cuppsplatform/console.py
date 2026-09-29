@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import queue
 import threading
 from http import HTTPStatus
@@ -34,6 +35,12 @@ SAMPLE_BCBP = (
     + "LHRJFKBA " + "00117" + "326" + "Y" + "032A" + "00025" + "1" + "00"
 )
 
+
+
+class _HttpServer(ThreadingHTTPServer):
+    # On Windows SO_REUSEADDR lets a second server share a port already in
+    # use, so a stale instance would silently answer; fail loudly instead.
+    allow_reuse_address = os.name != "nt"
 
 class _Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -150,7 +157,7 @@ class Console:
     def __init__(self, platform: CuppsPlatform, *, host: str = "127.0.0.1",
                  port: int = 8640) -> None:
         self.platform = platform
-        self._server = ThreadingHTTPServer((host, port), _Handler)
+        self._server = _HttpServer((host, port), _Handler)
         self._server.daemon_threads = True
         self._server.platform = platform  # type: ignore[attr-defined]
         self._server.listeners = []  # type: ignore[attr-defined]

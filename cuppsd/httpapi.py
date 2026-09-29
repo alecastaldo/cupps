@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import mimetypes
 import queue
 import threading
@@ -46,6 +47,12 @@ class ApiError(Exception):
         self.status = status
         self.message = message
 
+
+
+class _HttpServer(ThreadingHTTPServer):
+    # On Windows SO_REUSEADDR lets a second server share a port already in
+    # use, so a stale instance would silently answer; fail loudly instead.
+    allow_reuse_address = os.name != "nt"
 
 class _Handler(BaseHTTPRequestHandler):
     server_version = "cuppsd"
@@ -436,7 +443,7 @@ class ApiServer:
         simulator: Any = None,
     ) -> None:
         self.service = service
-        self._server = ThreadingHTTPServer((host, port), _Handler)
+        self._server = _HttpServer((host, port), _Handler)
         self._server.daemon_threads = True
         self._server.service = service  # type: ignore[attr-defined]
         # Present only in simulator mode; see _simulator_control.

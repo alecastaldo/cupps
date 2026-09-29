@@ -193,3 +193,18 @@ def test_split_tracks_numbers_by_sentinel():
     assert split_tracks("%B41^X^29?;41=29?;015?") == {1: "B41^X^29", 2: "41=29", 3: "015"}
     assert split_tracks(";41=29?+015?") == {2: "41=29", 3: "015"}
     assert split_tracks("RAW") == {1: "RAW"}
+
+
+def test_any_port_request_stays_in_the_user_port_range(tmp_path):
+    # Section 26.5.  Windows allocates ephemeral ports above 49151, so the
+    # platform must choose the port itself rather than take the OS's pick.
+    from simulator import PlatformSimulator
+
+    sims = [PlatformSimulator().start() for _ in range(5)]
+    try:
+        for sim in sims:
+            assert 1024 <= sim.platform_port <= 49151
+            assert 1024 <= sim.device_port <= 49151
+    finally:
+        for sim in sims:
+            sim.stop()

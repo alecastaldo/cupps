@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import itertools
 import logging
+import os
 import queue
 import secrets
 import socket
@@ -352,12 +353,36 @@ class _DeviceHandler(_Handler):
 
 
 class _Server(socketserver.ThreadingTCPServer):
-    allow_reuse_address = True
+    # On Windows SO_REUSEADDR lets a second socket take a port already in
+    # use, silently, so it is only set where it means "reuse after close".
+    allow_reuse_address = os.name != "nt"
     daemon_threads = True
 
     def __init__(self, address, handler, simulator: "PlatformSimulator") -> None:
         self.simulator = simulator
         super().__init__(address, handler)
+
+
+#: Section 26.5: CUPPSPP must be in the IETF RFC 6335 user port range.
+USER_PORT_RANGE = (1024, 49151)
+#: Where a port is picked when the caller asks for any port. The operating
+#: system's own choice cannot be used: Windows allocates ephemeral ports from
+#: 49152 upwards, outside the range section 26.5 allows.
+_PICK_RANGE = (20000, USER_PORT_RANGE[1])
+
+
+def _listen(host: str, port: int, handler, simulator) -> _Server:
+    """Listen on ``port``, or on a free user port when ``port`` is 0."""
+    if port:
+        return _Server((host, port), handler, simulator)
+    last_error: Optional[OSError] = None
+    for _ in range(200):
+        candidate = secrets.SystemRandom().randint(*_PICK_RANGE)
+        try:
+            return _Server((host, candidate), handler, simulator)
+        except OSError as exc:  # in use, or reserved (Windows excludes ranges)
+            last_error = exc
+    raise OSError(f"no free port in {_PICK_RANGE[0]}-{_PICK_RANGE[1]}") from last_error
 
 
 class PlatformSimulator:
@@ -404,10 +429,8 @@ class PlatformSimulator:
         #: Documents cancelled via <printCancelRequest>, for assertions.
         self.cancelled_documents: list[str] = []
 
-        self._platform_server = _Server(
-            (host, platform_port), _PlatformHandler, self
-        )
-        self._device_server = _Server((host, device_port), _DeviceHandler, self)
+        self._platform_server = _listen(host, platform_port, _PlatformHandler, self)
+        self._device_server = _listen(host, device_port, _DeviceHandler, self)
         self.platform_port = self._platform_server.server_address[1]
         self.device_port = self._device_server.server_address[1]
         self._threads: list[threading.Thread] = []
