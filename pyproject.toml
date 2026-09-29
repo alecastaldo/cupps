@@ -35,6 +35,8 @@ validation = ["lxml>=4.9"]
 cuppsd = "cuppsd.__main__:main"
 cuppsit = "cuppsit:main"
 cupps-labbench = "tools.labbench:main"
+cupps-platform = "cuppsplatform.__main__:main"
+cupps-certify = "conformance.__main__:main"
 
 [tool.setuptools]
 packages = ["cupps", "cuppsd", "cuppsplatform", "cuppsplatform.drivers", "simulator", "conformance", "tools"]
@@ -42,3 +44,6 @@ py-modules = ["cuppsit"]
 
 [tool.setuptools.package-data]
 "*" = ["../webui/*"]
+cupps = ["*.json"]
+cuppsd = ["profiles/*.json"]
+cuppsplatform = ["console.html", "bindings/*"]

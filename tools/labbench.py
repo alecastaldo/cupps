@@ -32,12 +32,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from cuppsplatform.drivers import (  # noqa: E402
+    DEFAULT_BENCH_KIND,
     BindingError,
     BindingRegistry,
     DeviceBinding,
     DriverData,
     DriverStatus,
-    PtyTransport,
 )
 from cuppsplatform.drivers.registry import DEFAULT_DRIVER_BY_TYPE  # noqa: E402
 
@@ -63,7 +63,7 @@ def load_registry(paths: list[Path]) -> BindingRegistry:
     if not paths:
         print(
             "labbench: no binding directories. Pass --bindings <dir>, or use\n"
-            "          --pty to rehearse against pseudo-terminals.",
+            "          --pty to rehearse against bench devices.",
             file=sys.stderr,
         )
         raise SystemExit(2)
@@ -71,7 +71,10 @@ def load_registry(paths: list[Path]) -> BindingRegistry:
 
 
 def pty_registry() -> BindingRegistry:
-    """A registry of pseudo-terminal devices, for a rehearsal with no hardware."""
+    """Bench devices, for a rehearsal with no hardware.
+
+    Pseudo-terminals where the OS has them, socket pairs on Windows.
+    """
     registry = BindingRegistry()
     for name, device_type, options in (
         ("BENCHBC1", "BC", {}),
@@ -84,7 +87,7 @@ def pty_registry() -> BindingRegistry:
                 "device": name,
                 "deviceType": device_type,
                 "driver": DEFAULT_DRIVER_BY_TYPE[device_type],
-                "transport": {"kind": "pty"},
+                "transport": {"kind": DEFAULT_BENCH_KIND},
                 "options": options,
             })
         )

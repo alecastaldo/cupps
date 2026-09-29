@@ -10,6 +10,7 @@ fake transport is a driver nobody has run.
 from __future__ import annotations
 
 import json
+import os
 import socket
 import threading
 import time
@@ -28,6 +29,7 @@ from cuppsplatform.drivers import (
     DriverStatus,
     LoopbackTransport,
     PtyTransport,
+    SocketPairTransport,
     ReaderDriver,
     TcpTransport,
     TransportConfig,
@@ -35,6 +37,9 @@ from cuppsplatform.drivers import (
     build_transport,
     normalise_port,
 )
+
+#: The bench stand-in for a serial device on this operating system.
+BenchTransport = PtyTransport if os.name == "posix" else SocketPairTransport
 
 pytest.importorskip("serial", reason="pyserial is needed for the serial path")
 
@@ -67,8 +72,23 @@ def test_com_port_normalisation(port, expected):
     assert normalise_port(port) == expected
 
 
+@pytest.mark.skipif(os.name != "posix", reason="pseudo-terminals are POSIX only")
 def test_pty_transport_carries_bytes_both_ways():
     with PtyTransport() as transport:
+        assert transport.is_open
+        transport.write(b"LT211909\r")
+        assert transport.device_read() == b"LT211909\r"
+
+        transport.device_write(b"ST0100\r")
+        data = b""
+        deadline = time.monotonic() + 2
+        while b"\r" not in data and time.monotonic() < deadline:
+            data += transport.read()
+        assert data == b"ST0100\r"
+
+
+def test_socketpair_transport_carries_bytes_both_ways():
+    with SocketPairTransport() as transport:
         assert transport.is_open
         transport.write(b"LT211909\r")
         assert transport.device_read() == b"LT211909\r"
@@ -134,7 +154,7 @@ def make_reader(transport, device_type="BC", **kwargs):
 
 
 def test_reader_parses_a_scan_over_a_real_serial_port():
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver, data, _ = make_reader(transport)
     with driver:
         driver.unsecure()
@@ -146,7 +166,7 @@ def test_reader_parses_a_scan_over_a_real_serial_port():
 
 def test_a_scan_split_across_two_reads_is_one_record():
     """A record straddling two reads must not become two scans."""
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver, data, _ = make_reader(transport)
     with driver:
         driver.unsecure()
@@ -160,7 +180,7 @@ def test_a_scan_split_across_two_reads_is_one_record():
 
 @pytest.mark.parametrize("terminator", [b"\r", b"\n", b"\r\n"])
 def test_all_record_terminators_are_accepted(terminator):
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver, data, _ = make_reader(transport)
     with driver:
         driver.unsecure()
@@ -170,7 +190,7 @@ def test_all_record_terminators_are_accepted(terminator):
 
 
 def test_two_scans_in_one_burst_are_two_records():
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver, data, _ = make_reader(transport)
     with driver:
         driver.unsecure()
@@ -180,7 +200,7 @@ def test_two_scans_in_one_burst_are_two_records():
 
 
 def test_unterminated_stream_is_flushed_rather_than_buffered_forever():
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver, data, _ = make_reader(transport)
     with driver:
         driver.unsecure()
@@ -191,7 +211,7 @@ def test_unterminated_stream_is_flushed_rather_than_buffered_forever():
 
 def test_normalisation_keeps_only_the_last_value():
     """Section 26.11.8: the last value inside DevNormTime is the one sent."""
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver, data, _ = make_reader(transport, normalise=True,
                                   normalise_window=0.3)
     with driver:
@@ -213,7 +233,7 @@ def test_a_secured_reader_ignores_scans():
     The stated reason is configuration barcodes, which can reprogram a
     reader. Input read while secured must never reach an application.
     """
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver, data, _ = make_reader(transport)
     with driver:
         assert driver.secured, "a device must start secured"
@@ -224,7 +244,7 @@ def test_a_secured_reader_ignores_scans():
 
 
 def test_unsecuring_then_securing_again_stops_delivery():
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver, data, _ = make_reader(transport)
     with driver:
         driver.unsecure()
@@ -238,7 +258,7 @@ def test_unsecuring_then_securing_again_stops_delivery():
 
 def test_securing_discards_a_partial_record():
     """A part-read record must not be completed by a later scan."""
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver, data, _ = make_reader(transport)
     with driver:
         driver.unsecure()
@@ -252,7 +272,7 @@ def test_securing_discards_a_partial_record():
 
 
 def test_a_secured_device_refuses_writes():
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver, _, _ = make_reader(transport)
     with driver:
         with pytest.raises(DeviceSecured, match="10.4.1"):
@@ -264,7 +284,7 @@ def test_a_secured_device_refuses_writes():
 
 def test_aea_driver_sends_ep_first_on_start():
     """Section 30.1 CRITICAL: EP opens every AEA session."""
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver = AeaDriver("LHRT4LB00302BP1", "BP", transport)
     try:
         driver.start()
@@ -276,7 +296,7 @@ def test_aea_driver_sends_ep_first_on_start():
 
 
 def test_aea_driver_passes_a_host_stream_through_unchanged():
-    transport = PtyTransport()
+    transport = BenchTransport()
     driver = AeaDriver("LHRT4LB00302BP1", "BP", transport,
                        send_ep_on_start=False)
     with driver:
@@ -294,7 +314,7 @@ def test_aea_status_keeps_ready_true_when_paper_runs_out():
     that clears ready here makes a routine paper change look like a dead
     device.
     """
-    transport = PtyTransport()
+    transport = BenchTransport()
     statuses: list[DriverStatus] = []
     driver = AeaDriver(
         "LHRT4LB00302BP1", "BP", transport,
@@ -310,7 +330,7 @@ def test_aea_status_keeps_ready_true_when_paper_runs_out():
 
 
 def test_aea_messages_reach_the_application():
-    transport = PtyTransport()
+    transport = BenchTransport()
     data: list[DriverData] = []
     driver = AeaDriver("LHRT4LB00302BP1", "BP", transport,
                        on_data=data.append, send_ep_on_start=False)
@@ -323,7 +343,7 @@ def test_aea_messages_reach_the_application():
 
 
 def test_transport_loss_is_reported_as_powered_off():
-    transport = PtyTransport()
+    transport = BenchTransport()
     statuses: list[DriverStatus] = []
     driver = AeaDriver("LHRT4LB00302BP1", "BP", transport,
                        on_status=statuses.append, send_ep_on_start=False)

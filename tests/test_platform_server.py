@@ -7,17 +7,11 @@ the application sees started as bytes written into a character device.
 
 import json
 import os
-import sys
 import time
 import urllib.error
 import urllib.request
 
 import pytest
-
-pytestmark = pytest.mark.skipif(
-    not sys.platform.startswith("linux") and sys.platform != "darwin",
-    reason="pseudo-terminals are POSIX only",
-)
 
 from cupps import (  # noqa: E402
     DeviceLocked,
@@ -41,9 +35,12 @@ def _wait(predicate, timeout=3.0):
     return predicate()
 
 
-@pytest.fixture
-def platform(tmp_path):
-    plat = CuppsPlatform(bindings=bench_bindings(tmp_path)).start()
+# "socketpair" is the Windows bench; it runs everywhere, so CI covers it.
+@pytest.fixture(params=["pty", "socketpair"])
+def platform(request, tmp_path):
+    if request.param == "pty" and os.name != "posix":
+        pytest.skip("pseudo-terminals are POSIX only")
+    plat = CuppsPlatform(bindings=bench_bindings(tmp_path, request.param)).start()
     yield plat
     plat.stop()
 
@@ -142,7 +139,7 @@ def test_platform_identifies_itself_as_the_engine(platform):
 
 
 def test_stop_returns_to_stopped(tmp_path):
-    plat = CuppsPlatform(bindings=bench_bindings(tmp_path)).start()
+    plat = CuppsPlatform(bindings=bench_bindings(tmp_path, "socketpair")).start()
     plat.stop()
     assert plat.machine.state.value == "pStp"
 

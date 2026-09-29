@@ -171,3 +171,22 @@ def test_record_states_what_was_not_exercised(simulator):
         assert "NOT EXERCISED" in to_text(result)
     finally:
         harness.stop()
+
+
+def test_launch_command_runs_this_interpreter():
+    from conformance.__main__ import launch_argv
+
+    assert launch_argv("python3 -m cuppsd --airline BA") == [
+        sys.executable, "-m", "cuppsd", "--airline", "BA",
+    ]
+    assert launch_argv("./agent --x 1") == ["./agent", "--x", "1"]
+
+
+def test_launch_command_keeps_windows_paths(monkeypatch):
+    from conformance import __main__ as cli
+
+    monkeypatch.setattr(cli.os, "name", "nt")
+    assert cli.launch_argv(r'"C:\Program Files\BA\agent.exe" --port 8799') == [
+        r"C:\Program Files\BA\agent.exe", "--port", "8799",
+    ]
+    assert cli.launch_argv(r"python C:\apps\bag.py") == [sys.executable, r"C:\apps\bag.py"]

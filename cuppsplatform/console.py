@@ -2,7 +2,7 @@
 
 Serves on the loopback adapter only.  Shows every Part II state machine as it
 moves, streams the chapter 31 events as they are raised, and -- for devices
-behind a pseudo-terminal or a file print backend -- offers bench controls that
+behind a bench transport (pseudo-terminal or socket pair) or a file print backend -- offers bench controls that
 act on the *peripheral side* of the wire.  A bench scan is written as bytes
 into the character device, where the real driver reads it; it never bypasses
 the driver, the securing rule or the protocol.

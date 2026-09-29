@@ -33,9 +33,12 @@ from .registry import (
     register_driver,
 )
 from .transport import (
+    BENCH_TRANSPORTS,
+    DEFAULT_BENCH_KIND,
     LoopbackTransport,
     PtyTransport,
     SerialTransport,
+    SocketPairTransport,
     TcpTransport,
     Transport,
     TransportConfig,
@@ -45,6 +48,8 @@ from .transport import (
 )
 
 __all__ = [
+    "BENCH_TRANSPORTS",
+    "DEFAULT_BENCH_KIND",
     "AeaDriver",
     "BindingError",
     "BindingRegistry",
@@ -62,6 +67,7 @@ __all__ = [
     "PtyTransport",
     "ReaderDriver",
     "SerialTransport",
+    "SocketPairTransport",
     "TcpTransport",
     "Transport",
     "TransportConfig",

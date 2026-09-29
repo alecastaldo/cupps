@@ -31,7 +31,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="cuppsplatform",
                                      description="CUPPS 01.04 platform")
     parser.add_argument("--demo", action="store_true",
-                        help="pseudo-terminal peripherals; no hardware needed")
+                        help="bench peripherals (pseudo-terminals, or socket pairs on Windows); no hardware needed")
+    parser.add_argument("--bench", choices=["pty", "socketpair"],
+                        help="bench transport for --demo (default: pty, or socketpair on Windows)")
     parser.add_argument("--bindings", action="append", default=[], type=Path,
                         help="directory of device bindings (repeatable)")
     parser.add_argument("--agent", action="store_true",
@@ -55,7 +57,7 @@ def main(argv=None) -> int:
     if args.demo:
         prints = (args.output / "prints").resolve()
         prints.mkdir(parents=True, exist_ok=True)
-        bindings = bench_bindings(prints)
+        bindings = bench_bindings(prints, args.bench) if args.bench else bench_bindings(prints)
     elif args.bindings:
         bindings = BindingRegistry.load(*args.bindings)
     else:

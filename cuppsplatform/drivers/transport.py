@@ -20,6 +20,10 @@ Four implementations ship:
     the serial path can be exercised end to end in CI with no hardware
     attached -- which is the difference between a driver that is tested and
     one that is merely written.
+``SocketPairTransport``
+    A connected socket pair: the bench stand-in where pseudo-terminals do
+    not exist (Windows).  Bytes still cross the operating system, and the
+    driver reads them exactly as it reads a networked device.
 """
 
 from __future__ import annotations
@@ -64,7 +68,7 @@ def normalise_port(port: str) -> str:
 class TransportConfig:
     """How to reach one physical device."""
 
-    kind: str                      # serial | tcp | loopback | pty
+    kind: str                      # serial | tcp | loopback | pty | socketpair
     port: str = ""                 # serial port name, or unused
     host: str = ""                 # tcp
     tcp_port: int = 0              # tcp
@@ -376,12 +380,67 @@ class PtyTransport(SerialTransport):
         return f"pty:{self.config.port or 'unopened'}"
 
 
+class SocketPairTransport(TcpTransport):
+    """A transport over a connected socket pair, with the far end in hand.
+
+    The portable counterpart of :class:`PtyTransport`: it works on Windows,
+    where there are no pseudo-terminals.  The driver sees a TCP-style byte
+    stream; :meth:`device_write` and :meth:`device_read` act as the device.
+    """
+
+    def __init__(self, config: Optional[TransportConfig] = None) -> None:
+        super().__init__(config or TransportConfig(kind="socketpair"))
+        self._far: Optional[socket.socket] = None
+
+    def open(self) -> None:
+        near, far = socket.socketpair()
+        near.settimeout(self.config.read_timeout)
+        self._socket, self._far = near, far
+
+    def close(self) -> None:
+        super().close()
+        far, self._far = self._far, None
+        if far is not None:
+            try:
+                far.close()
+            except OSError:
+                pass
+
+    def device_write(self, data: bytes) -> None:
+        """Send bytes to the platform, as the peripheral would."""
+        if self._far is None:
+            raise TransportError("socket pair is not open")
+        self._far.sendall(data)
+
+    def device_read(self, size: int = 4096, timeout: float = 1.0) -> bytes:
+        """Read what the platform sent, as the peripheral would."""
+        far = self._far
+        if far is None:
+            raise TransportError("socket pair is not open")
+        far.settimeout(timeout)
+        try:
+            return far.recv(size)
+        except socket.timeout:
+            return b""
+
+    def describe(self) -> str:
+        return "socketpair:bench"
+
+
+#: Transports whose far end the platform can play, for a bench with no
+#: hardware.  Both offer ``device_write`` and ``device_read``.
+BENCH_TRANSPORTS = (PtyTransport, SocketPairTransport)
+
+#: The bench transport kind for this operating system.
+DEFAULT_BENCH_KIND = "pty" if os.name == "posix" else "socketpair"
+
 #: Transport kinds, for binding from configuration.
 TRANSPORTS = {
     "serial": SerialTransport,
     "tcp": TcpTransport,
     "loopback": LoopbackTransport,
     "pty": PtyTransport,
+    "socketpair": SocketPairTransport,
 }
 
 

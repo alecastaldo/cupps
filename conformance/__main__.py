@@ -115,6 +115,22 @@ def list_checks() -> int:
     return 0
 
 
+
+def launch_argv(command: str) -> list[str]:
+    """Split a ``--launch`` command for the operating system in use.
+
+    On Windows, POSIX splitting would eat the backslashes in paths, and
+    ``python3`` is usually absent or a Store stub, so a leading ``python`` or
+    ``python3`` runs this interpreter instead.
+    """
+    windows = os.name == "nt"
+    argv = shlex.split(command, posix=not windows)
+    if windows:
+        argv = [a[1:-1] if len(a) > 1 and a[0] == a[-1] == '"' else a for a in argv]
+    if argv and argv[0].lower() in ("python", "python3", "python.exe", "python3.exe"):
+        argv[0] = sys.executable
+    return argv
+
 def main(argv: Optional[list[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     logging.basicConfig(
@@ -169,7 +185,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             environment.update(harness.environment)
             print(f"  launching: {args.launch}")
             child = subprocess.Popen(
-                shlex.split(args.launch),
+                launch_argv(args.launch),
                 env=environment,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,

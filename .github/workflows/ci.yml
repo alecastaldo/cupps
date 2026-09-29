@@ -28,15 +28,22 @@ jobs:
       #   python3 tools/interface_gate.py --update --note "<what changed>"
 
   tests:
-    name: Test suite
-    runs-on: ubuntu-latest
+    name: Test suite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # CUPPS workstations are mostly Windows; the lab bench is often Linux.
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install -e ".[test]"
-      - run: python3 -m pytest
+      - run: python -m pytest
+      - name: Certify the reference application against the platform engine
+        run: python -m conformance --engine --launch "python -m cuppsd --airline ZZ --port 8799"
 
   conformance:
     name: Self-assessment record

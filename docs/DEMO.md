@@ -3,17 +3,29 @@
 A 20-minute demonstration of the CUPPS platform engine. It shows a real
 airline application using peripherals through the engine, the security
 default, the self-certification tool, and the release gate. You need one
-Linux or macOS machine with Python 3.10+ and a browser. No hardware is
-required. Act 6 covers real hardware if you have some.
+Windows, Linux or macOS machine with Python 3.10+ and a browser. No
+hardware is required. Act 7 covers real hardware if you have some.
+
+Commands are written for Windows PowerShell. On Linux or macOS they are
+the same, except that you type `python3` where `python` is not found and
+set environment variables as shown in Act 2.
 
 ## Before the audience arrives (5 minutes)
 
-```sh
-git clone <repo> cupps && cd cupps
-python3 -m pip install -e '.[test]'
-python3 -m pytest -q              # 268 passed, about 80 s
-python3 -m cuppsplatform --demo --agent
+```powershell
+git clone <repo> cupps
+cd cupps
+python -m venv .venv
+.venv\Scripts\Activate.ps1          # Linux/macOS: source .venv/bin/activate
+python -m pip install -e ".[test]"
+python -m pytest -q                 # all pass, about 90 s
+python -m cuppsplatform --demo --agent
 ```
+
+If PowerShell refuses to run `Activate.ps1`, run
+`Set-ExecutionPolicy -Scope Process Bypass` in that window first. When
+Windows Defender Firewall asks about Python, **Cancel** is fine: the demo
+listens on 127.0.0.1 only.
 
 The last command prints:
 
@@ -22,16 +34,17 @@ CUPPSPN / CUPPSPP ... 127.0.0.1 / 7535
 platform console .... http://127.0.0.1:8640/
 airline agent app ... http://127.0.0.1:8631/
 printed documents ... demo-output/prints
-CUPPSPLT001BC1  BC  pty:/dev/pts/0
+CUPPSPLT001BC1  BC  socketpair:bench     (pty:/dev/pts/0 on Linux/macOS)
 ...
 ```
 
 Open both URLs side by side: the **platform console** on the left and the
 **agent app** on the right.
 
-Each device is a pseudo-terminal, which is a real character device. The
-bench buttons write bytes into it, and the same drivers that would read
-a USB-serial scanner read those bytes. No step of the demo bypasses the
+Each bench device is a real operating-system channel: a connected socket
+pair on Windows, a pseudo-terminal on Linux and macOS. The bench buttons
+write bytes into it, and the same drivers that would read a scanner read
+those bytes. No step of the demo bypasses the
 driver. For a cleaner story, start without `--agent` and bring the
 application in during Act 2.
 
@@ -53,10 +66,13 @@ application in during Act 2.
 In a second terminal, start the application using the standard CUPPS
 environment variables:
 
-```sh
-CUPPSPN=127.0.0.1 CUPPSPP=7535 CUPPSAL2=BA \
-  python3 -m cuppsd --airline-name "BRITISH AIRWAYS"
+```powershell
+$env:CUPPSPN="127.0.0.1"; $env:CUPPSPP="7535"; $env:CUPPSAL2="BA"
+python -m cuppsd --airline-name "BRITISH AIRWAYS"
 ```
+
+On Linux or macOS:
+`CUPPSPN=127.0.0.1 CUPPSPP=7535 CUPPSAL2=BA python3 -m cuppsd --airline-name "BRITISH AIRWAYS"`
 
 - The console shows `CUPPSAGENT aStd`, and the event log shows
   `aStdEnteredEvent` followed by the device `acquire` events.
@@ -95,9 +111,8 @@ CUPPSPN=127.0.0.1 CUPPSPP=7535 CUPPSAL2=BA \
 
 In a third terminal:
 
-```sh
-python3 -m conformance --engine \
-  --launch "python3 -m cuppsd --airline BA --port 8799"
+```powershell
+python -m conformance --engine --launch "python -m cuppsd --airline BA --port 8799"
 ```
 
 - The harness starts the real engine, launches the application,
@@ -108,14 +123,14 @@ python3 -m conformance --engine \
   against their own application.
 - Show a failure. `tests/fixtures/nonconforming_app.py` is an application
   that breaks rules deliberately:
-  `python3 -m conformance --engine --launch "python3 tests/fixtures/nonconforming_app.py"`
+  `python -m conformance --engine --launch "python tests/fixtures/nonconforming_app.py"`
   gives 7 failed and the verdict **NOT READY for compliance testing**, and
   each failure names the rule and the message that broke it.
 
 Then run the release gate:
 
-```sh
-python3 tools/interface_gate.py --check
+```powershell
+python tools/interface_gate.py --check
 ```
 
 The output `Interface unchanged ... does not require re-certification
@@ -127,10 +142,15 @@ release can go to 500 airports without a change advisory board.
 Plug in a USB-serial barcode scanner or ATB printer and write a binding
 (see `cuppsplatform/bindings/README.md`). Then run:
 
-```sh
-python3 tools/labbench.py --bindings ./bench --probe
-python3 -m cuppsplatform --bindings ./bench --agent
+```powershell
+python tools/labbench.py --bindings .\bench --probe
+python -m cuppsplatform --bindings .\bench --agent
 ```
+
+On Windows a USB-serial device appears as a COM port. Find it in Device
+Manager under *Ports (COM & LPT)* and put it in the binding, for example
+`"transport": {"kind": "serial", "port": "COM17"}`. Ports above COM9 are
+handled for you.
 
 The code path is identical. The console hides the bench buttons for real
 hardware and refuses bench requests for it, because a simulated read of
@@ -141,10 +161,12 @@ bring-up.
 
 | Symptom | Fix |
 |---|---|
-| `Address already in use` | Pass `--platform-port`, `--device-port`, `--console-port` or `--agent-port` with free ports. |
+| `Address already in use`, or on Windows `WinError 10048` | Pass `--platform-port`, `--device-port`, `--console-port` or `--agent-port` with free ports. |
 | Agent shows *Disconnected* | Check that the platform terminal is still running and that the agent's `CUPPSPP` matches `--platform-port`. |
 | Scans do nothing | Expected when no application holds the reader (Act 1). Start the agent. |
 | No PDF | Check the path printed on the `printed documents` line. |
+| Windows: `python` opens the Microsoft Store | Use `py` instead of `python` in every command, or install Python from python.org with *Add to PATH* ticked. |
+| Windows: `pip install` fails building `pycryptodome` | Upgrade pip first: `python -m pip install -U pip`. A wheel then installs with no compiler. |
 
 ## What not to claim
 
@@ -155,4 +177,6 @@ Be precise about these points in front of an audience:
   says it is not a certificate.
 - XML schema validation, which §27.1.4 makes mandatory for platforms, is
   not implemented yet. Chapter 20 security, persistence, metrics, HID
-  and RFID readers, and Windows packaging are also missing.
+  and RFID readers are also missing.
+- It runs on Windows from Python, but there is no installer and no
+  Windows service wrapper yet.

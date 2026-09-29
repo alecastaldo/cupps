@@ -45,6 +45,8 @@ from .device import (
     ManagedDevice,
 )
 from .drivers import (
+    BENCH_TRANSPORTS,
+    DEFAULT_BENCH_KIND,
     AeaDriver,
     BindingRegistry,
     DeviceDriver,
@@ -52,7 +54,6 @@ from .drivers import (
     DriverData,
     DriverStatus,
     PrintDriver,
-    PtyTransport,
     TransportError,
 )
 from .events import Event, EventBus, attach_state_machine
@@ -290,36 +291,37 @@ class CuppsPlatform(PlatformSimulator):
 
     # -- injection: drive the *peripheral*, not the protocol ----------------
 
-    def _pty(self, name: str) -> Optional[PtyTransport]:
+    def _bench_end(self, name: str):
+        """The bench transport of a device, or None for real hardware."""
         driver = self.drivers.get(name.upper())
-        if driver is not None and isinstance(driver.transport, PtyTransport):
+        if driver is not None and isinstance(driver.transport, BENCH_TRANSPORTS):
             return driver.transport
         return None
 
     def scan_barcode(self, device_name: str, data: str, type_code: str = "6") -> None:
-        """On a pseudo-terminal device, send the scan as real bytes."""
-        pty = self._pty(device_name)
-        if pty is None:
+        """On a bench device, send the scan as real bytes."""
+        port = self._bench_end(device_name)
+        if port is None:
             return super().scan_barcode(device_name, data, type_code)
-        pty.device_write(data.encode("latin-1") + b"\r")
+        port.device_write(data.encode("latin-1") + b"\r")
 
     def swipe_card(self, device_name: str, tracks: dict[int, str]) -> None:
-        pty = self._pty(device_name)
-        if pty is None:
+        port = self._bench_end(device_name)
+        if port is None:
             return super().swipe_card(device_name, tracks)
         framed = "".join(
             ("%" if track_id == 1 else ";") + content + "?"
             for track_id, content in sorted(tracks.items())
         )
-        pty.device_write(framed.encode("latin-1") + b"\r")
+        port.device_write(framed.encode("latin-1") + b"\r")
 
     def set_status(self, device_name: str, **flags: bool) -> None:
         driver = self.drivers.get(device_name.upper())
         if isinstance(driver, PrintDriver) and "paper_out" in flags:
             driver.set_paper_out(bool(flags["paper_out"]))
             return
-        pty = self._pty(device_name)
-        if isinstance(driver, AeaDriver) and pty is not None and (
+        port = self._bench_end(device_name)
+        if isinstance(driver, AeaDriver) and port is not None and (
             "paper_out" in flags or "paper_jam" in flags
         ):
             word = b"ST01"
@@ -327,7 +329,7 @@ class CuppsPlatform(PlatformSimulator):
                 word += b"P"
             if flags.get("paper_jam"):
                 word += b"J"
-            pty.device_write(word + b"\r")
+            port.device_write(word + b"\r")
             return
         super().set_status(device_name, **flags)
 
@@ -597,7 +599,7 @@ class CuppsPlatform(PlatformSimulator):
                     "ready": device.ready, "powerOff": device.power_off,
                     "paperOut": device.paper_out, "paperJam": device.paper_jam,
                 },
-                "bench": self._pty(device.name) is not None
+                "bench": self._bench_end(device.name) is not None
                 or isinstance(driver, PrintDriver),
             })
         return {
@@ -634,20 +636,22 @@ def _document_bytes(document: xmlmsg.Element) -> bytes:
     return b"".join(chunks)
 
 
-def bench_bindings(print_dir: Path) -> BindingRegistry:
-    """Pseudo-terminal peripherals, for a demonstration with no hardware.
+def bench_bindings(print_dir: Path, kind: str = DEFAULT_BENCH_KIND) -> BindingRegistry:
+    """Bench peripherals, for a demonstration with no hardware.
 
-    Each is driven by the real driver over a real character device; only the
-    far end of the wire is played by the console instead of a peripheral.
+    Each is driven by the real driver over a real operating-system channel
+    (a pseudo-terminal, or a socket pair on Windows); only the far end of
+    the wire is played by the console instead of a peripheral.
     """
     from .drivers import DeviceBinding
 
+    transport = {"kind": kind}
     registry = BindingRegistry()
     for payload in (
-        {"device": "CUPPSPLT001BC1", "deviceType": "BC", "transport": {"kind": "pty"}},
-        {"device": "CUPPSPLT001MS1", "deviceType": "MS", "transport": {"kind": "pty"}},
-        {"device": "CUPPSPLT001BP1", "deviceType": "BP", "transport": {"kind": "pty"}},
-        {"device": "CUPPSPLT001PR1", "deviceType": "PR", "transport": {"kind": "pty"},
+        {"device": "CUPPSPLT001BC1", "deviceType": "BC", "transport": dict(transport)},
+        {"device": "CUPPSPLT001MS1", "deviceType": "MS", "transport": dict(transport)},
+        {"device": "CUPPSPLT001BP1", "deviceType": "BP", "transport": dict(transport)},
+        {"device": "CUPPSPLT001PR1", "deviceType": "PR", "transport": dict(transport),
          "options": {"backend": "file",
                      "backend_options": {"directory": str(print_dir)}}},
     ):
