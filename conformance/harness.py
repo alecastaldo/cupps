@@ -100,9 +100,14 @@ class ConformanceHarness:
         devices: Optional[list[SimulatedDevice]] = None,
         application_name: str = "",
         application_version: str = "",
+        platform: Optional[PlatformSimulator] = None,
     ) -> None:
         self.recorder = Recorder()
-        self.simulator = PlatformSimulator(
+        # Any platform built on the simulator's protocol handling can be
+        # assessed against, including the production engine
+        # (cuppsplatform.server.CuppsPlatform), whose peripherals sit behind
+        # real drivers.
+        self.simulator = platform or PlatformSimulator(
             host=host,
             platform_port=platform_port,
             device_port=device_port,

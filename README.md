@@ -21,6 +21,10 @@ CUPPS application package to ship.
 
 ## Try it in 30 seconds
 
+To demonstrate the platform engine with an airline application on top,
+run `python3 -m cuppsplatform --demo --agent` and follow
+[docs/DEMO.md](docs/DEMO.md).
+
 No platform, no hardware, no configuration:
 
 ```bash

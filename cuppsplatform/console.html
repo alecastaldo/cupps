@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23177a5c'/%3E%3Ctext x='16' y='22' font-size='15' font-family='sans-serif' font-weight='bold' fill='white' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E">
+<title>CUPPS Platform Console</title>
+<style>
+:root{--bg:#0e1319;--panel:#161d25;--panel2:#1c252f;--line:#2a3542;--ink:#e6edf4;--muted:#8a9bb0;
+ --ok:#2fb67c;--warn:#e0a43a;--bad:#e05a4f;--lock:#5b8def;--busy:#b07ce8;--r:10px}
+@media (prefers-color-scheme:light){:root{--bg:#eef2f5;--panel:#fff;--panel2:#f5f7fa;--line:#d7dfe7;--ink:#141c25;--muted:#5a6b7e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+header{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:14px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0}
+h1 small{display:block;font-size:11px;font-weight:400;color:var(--muted);letter-spacing:.05em}
+.meta{display:flex;gap:18px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.meta b{display:block;color:var(--ink);font-size:13px}
+.chip{display:inline-block;font:600 12px ui-monospace,Consolas,monospace;padding:2px 8px;border-radius:6px;background:var(--panel2);border:1px solid var(--line)}
+.s-Std,.s-pStd,.s-wStd,.s-aStd,.s-dStd{color:var(--ok);border-color:var(--ok)}
+.s-dLkd{color:var(--lock);border-color:var(--lock)}
+.s-dBsy,.s-wBsy{color:var(--busy);border-color:var(--busy)}
+.s-dErr,.s-dZom,.s-aZom,.s-wZom{color:var(--bad);border-color:var(--bad)}
+.s-dStg,.s-pStg,.s-aAth,.s-dSpg,.s-pSpg,.s-aSpg{color:var(--warn);border-color:var(--warn)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;padding:16px 20px}
+@media (max-width:1000px){main{grid-template-columns:1fr}}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:4px 0 10px}
+.apps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;min-height:28px}
+.app{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;display:flex;gap:8px;align-items:center}
+.devices{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.dev{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:8px}
+.dev .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dev .nm{font-weight:700}
+.dev .sub{font-size:11.5px;color:var(--muted);word-break:break-all}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.flag{font-size:10.5px;padding:1px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted)}
+.flag.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.flag.on.bad{background:var(--bad);border-color:var(--bad)}
+.sec{font-size:11.5px;padding:3px 8px;border-radius:6px}
+.sec.locked{background:rgba(224,164,58,.14);color:var(--warn)}
+.sec.open{background:rgba(47,182,124,.14);color:var(--ok)}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+button{font:600 12px inherit;font-family:inherit;padding:7px 10px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer;min-height:34px}
+button:hover{border-color:var(--lock)}
+.log{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);height:calc(100vh - 150px);min-height:320px;overflow:auto;font:12px/1.55 ui-monospace,Consolas,monospace}
+.log div{padding:3px 10px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:64px 1fr;gap:8px}
+.log .t{color:var(--muted)}
+.log .m-p{color:var(--ok)} .log .m-w{color:#3fb6c9} .log .m-a{color:var(--busy)} .log .m-d{color:var(--lock)} .log .m-x{color:var(--warn)}
+.log .sj{color:var(--muted)}
+.note{font-size:12px;color:var(--muted);margin:10px 0 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>CUPPS Platform Console<small>TS 01.04.0004 · Part II engine · live</small></h1>
+  <div class="meta">
+    <div>Platform<b><span class="chip" id="p-state">-</span></b></div>
+    <div>Workstation<b id="ws">-</b></div>
+    <div>Workstation state<b><span class="chip" id="w-state">-</span></b></div>
+    <div>CUPPSPN:CUPPSPP<b id="ports">-</b></div>
+  </div>
+</header>
+<main>
+  <section>
+    <h2>Applications (chapter 9)</h2>
+    <div class="apps" id="apps"></div>
+    <h2>Devices (chapter 10)</h2>
+    <div class="devices" id="devices"></div>
+    <p class="note">Bench buttons write bytes into the device's character device, where the real driver reads them. They are offered only for pseudo-terminal devices; on real hardware you use the peripheral.</p>
+  </section>
+  <section>
+    <h2>Chapter 31 events, live</h2>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function post(path,body){
+  const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!r.ok){const e=await r.json().catch(()=>({}));alert(e.error||r.status);}
+  setTimeout(refresh,250);
+}
+function benchButtons(d){
+  if(!d.bench) return "";
+  const b=(label,path,body)=>`<button data-p="${path}" data-b='${esc(JSON.stringify(body))}'>${label}</button>`;
+  const dev={device:d.name};
+  if(d.type==="BC") return b("Scan boarding pass","/api/bench/scan",dev)+b("Scan config barcode","/api/bench/scan",{...dev,data:"CONFIGURE-READER"});
+  if(d.type==="MS") return b("Swipe card","/api/bench/swipe",dev);
+  if(d.type==="BP"||d.type==="PR"||d.type==="BT") return b("Paper out","/api/bench/paper",{...dev,out:true})+b("Paper in","/api/bench/paper",{...dev,out:false});
+  return "";
+}
+function render(s){
+  $("p-state").textContent=s.platform.state; $("p-state").className="chip s-"+s.platform.state;
+  $("w-state").textContent=s.platform.workstationState; $("w-state").className="chip s-"+s.platform.workstationState;
+  $("ws").textContent=s.platform.workstation;
+  $("ports").textContent="127.0.0.1:"+s.platform.platformPort;
+  $("apps").innerHTML=s.applications.length?s.applications.map(a=>`<div class="app">${esc(a.name)} <span class="chip s-${a.state}">${a.state}</span></div>`).join(""):'<span class="note" style="margin:0">No application connected</span>';
+  $("devices").innerHTML=s.devices.map(d=>{
+    const st=d.status, flags=[["ready",st.ready,false],["powerOff",st.powerOff,true],["paperOut",st.paperOut,true],["paperJam",st.paperJam,true]]
+      .map(([n,v,bad])=>`<span class="flag${v?" on"+(bad?" bad":""):""}">${n}</span>`).join("");
+    const sec=d.secured===null?'<span class="sec open">platform software device</span>'
+      :d.secured?`<span class="sec locked">secured §10.4.1 · ${d.discarded} discarded</span>`
+      :`<span class="sec open">held by ${d.acquiredBy} session(s)</span>`;
+    const lock=d.locked?`<span class="flag on" style="background:var(--lock);border-color:var(--lock)">lock ${esc(d.lockMethod||"")}</span>`:"";
+    return `<div class="dev"><div class="top"><span class="nm">${esc(d.name)}</span><span class="chip s-${d.state}">${d.state}</span></div>
+      <div class="sub">${esc(d.type)} · ${esc(d.driver)} · ${esc(d.transport)}</div>
+      <div class="row">${sec}${lock}</div><div class="row">${flags}</div>
+      <div class="btns">${benchButtons(d)}</div></div>`;
+  }).join("");
+}
+$("devices").addEventListener("click",e=>{const b=e.target.closest("button[data-p]");if(b)post(b.dataset.p,JSON.parse(b.dataset.b));});
+async function refresh(){try{render(await (await fetch("/api/state")).json());}catch(e){}}
+function addEvent(ev){
+  const n=ev.eventName||"", c=n.startsWith("driver:")?"m-x":("m-"+(n[0]||"x"));
+  const row=document.createElement("div");
+  const detail=ev.detail||ev.reason||"";
+  row.innerHTML=`<span class="t">${esc((ev.at||"").slice(11,19))}</span><span><span class="${c}">${esc(n)}</span> <span class="sj">${esc(ev.subject||"")}${detail?" · "+esc(detail):""}</span></span>`;
+  $("log").prepend(row); while($("log").childElementCount>400)$("log").lastElementChild.remove();
+}
+let t=null;
+function connect(){const src=new EventSource("/api/events");
+  src.onmessage=m=>{try{addEvent(JSON.parse(m.data));}catch(e){} clearTimeout(t);t=setTimeout(refresh,150);};
+  src.onerror=()=>{src.close();setTimeout(connect,2000);};}
+refresh(); connect(); setInterval(refresh,3000);
+</script>
+</body>
+</html>

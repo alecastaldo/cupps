@@ -363,6 +363,9 @@ class _Server(socketserver.ThreadingTCPServer):
 class PlatformSimulator:
     """A runnable, in-process CUPPS platform."""
 
+    PLATFORM_VENDOR = "SIM"
+    PLATFORM_VERSION = "01.04.0.0001"
+
     def __init__(
         self,
         *,
@@ -658,8 +661,8 @@ class PlatformSimulator:
             xmlmsg.Element(
                 "platformParameter",
                 {
-                    "platformVendor": "SIM",
-                    "platformVersion": "01.04.0.0001",
+                    "platformVendor": self.PLATFORM_VENDOR,
+                    "platformVersion": self.PLATFORM_VERSION,
                     "platformTime": _now(),
                 },
             )

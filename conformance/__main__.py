@@ -80,6 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--list-checks", action="store_true",
         help="print the check catalogue and exit",
     )
+    parser.add_argument(
+        "--engine", action="store_true",
+        help="assess against the CUPPS platform engine with pseudo-terminal "
+             "peripherals behind real drivers, instead of the simulator",
+    )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--platform-port", type=int, default=0)
     parser.add_argument("--device-port", type=int, default=0)
@@ -129,12 +134,26 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         return 2
 
+    engine = None
+    if args.engine:
+        import tempfile
+
+        from cuppsplatform.server import CuppsPlatform, bench_bindings
+
+        engine = CuppsPlatform(
+            bindings=bench_bindings(Path(tempfile.mkdtemp(prefix="certify-"))),
+            host=args.host,
+            platform_port=args.platform_port,
+            device_port=args.device_port,
+            workstation="CERTCUPPSCKI001",
+        )
     harness = ConformanceHarness(
         host=args.host,
         platform_port=args.platform_port,
         device_port=args.device_port,
         application_name=args.name,
         application_version=args.version,
+        platform=engine,
     ).start()
 
     child: Optional[subprocess.Popen] = None
